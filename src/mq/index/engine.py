@@ -135,37 +135,41 @@ def compute_index(spec: ContractSpec, rain_grid: pl.DataFrame, as_of: date) -> I
         window_dates.append(d)
         d += timedelta(days=1)
 
-    station_rainfall = [
-        _station_daily_rainfall(rain_grid, lat=st.lat, lon=st.lon) for st in stations
-    ]
+    # Vectorized via joins rather than one .filter() call per (day, station)
+    # — the latter is correct but, at season/multi-decade scale (hundreds
+    # to tens of thousands of lookups), dominated by per-call overhead
+    # rather than actual work. A left join exposes any missing day as a
+    # null in one pass instead of a Python-level lookup per day.
+    window_df = pl.DataFrame({"date": window_dates}).with_columns(
+        pl.col("date").dt.month().alias("month"), pl.col("date").dt.day().alias("day")
+    )
 
-    daily_rainfall: list[float] = []
-    daily_lpa: list[float] = []
+    rain_cols = []
     missing: list[str] = []
-    for day in window_dates:
-        station_values = []
-        for i, st_df in enumerate(station_rainfall):
-            match = st_df.filter(pl.col("date") == day)
-            if match.height == 0:
-                missing.append(f"{stations[i].station_id} on {day.isoformat()}")
-                continue
-            station_values.append(float(match["rain_mm"].item()))
-        if len(station_values) == len(stations):
-            daily_rainfall.append(sum(station_values) / len(station_values))
-        else:
-            daily_rainfall.append(float("nan"))
-
-        lpa_values = [
-            lpa.table.filter((pl.col("month") == day.month) & (pl.col("day") == day.day))
-            for lpa in lpas
-        ]
-        daily_lpa.append(sum(float(v["lpa_mm"].item()) for v in lpa_values) / len(lpa_values))
+    for i, st in enumerate(stations):
+        st_rain = _station_daily_rainfall(rain_grid, lat=st.lat, lon=st.lon)
+        col_name = f"_rain_{i}"
+        rain_cols.append(col_name)
+        window_df = window_df.join(st_rain.rename({"rain_mm": col_name}), on="date", how="left")
+        null_dates = window_df.filter(pl.col(col_name).is_null())["date"]
+        missing.extend(f"{st.station_id} on {dt.isoformat()}" for dt in null_dates.to_list())
 
     if missing:
         raise ValueError(
             f"missing rainfall data for {len(missing)} station-day(s), e.g. {missing[:5]} — "
             "cannot compute a continuous CDR index with gaps"
         )
+
+    daily_rainfall = window_df.select(pl.mean_horizontal(rain_cols).alias("avg"))["avg"].to_list()
+
+    lpa_cols = []
+    for i, lpa in enumerate(lpas):
+        col_name = f"_lpa_{i}"
+        lpa_cols.append(col_name)
+        window_df = window_df.join(
+            lpa.table.rename({"lpa_mm": col_name}), on=["month", "day"], how="left"
+        )
+    daily_lpa = window_df.select(pl.mean_horizontal(lpa_cols).alias("avg"))["avg"].to_list()
 
     deviations = [rain - lpa_val for rain, lpa_val in zip(daily_rainfall, daily_lpa, strict=True)]
     spot: list[float] = []
