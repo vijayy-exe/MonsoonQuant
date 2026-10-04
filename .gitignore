@@ -1,3 +1,6 @@
+# Scratch / one-off scripts (never part of the checked-in codebase)
+.scratch/
+
 # Python
 __pycache__/
 *.py[cod]

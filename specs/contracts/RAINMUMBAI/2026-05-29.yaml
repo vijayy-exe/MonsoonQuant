@@ -1,0 +1,79 @@
+# RAINMUMBAI contract spec — resolved from official NCDEX documents.
+#
+# Sources (specs/sources/*.yaml, hashed and immutable):
+#   - ncdex_spec_rainmumbai_2026 (Contract Specifications, applicable Jun 2026+)
+#   - ncdex_product_note_rainmumbai_2026 (Product Note, Exhibit 2: CDR spot methodology)
+#   - ncdex_launch_circular_rainmumbai_2026 (Launch circular)
+#
+# station lat/lon are approximate public IMD-station coordinates for engineering
+# use (nearest-grid-cell lookup) — the station *identity* (Colaba, Santacruz)
+# is the verified fact from the product note; exact official coordinates
+# should be confirmed against IMD station metadata in M3.
+
+contract_code: RAINMUMBAI
+spec_version: 2026-05-29
+
+stations:
+  - station_id: colaba
+    name: Colaba
+    lat: 18.90
+    lon: 72.82
+    weight: 1.0
+  - station_id: santacruz
+    name: Santacruz
+    lat: 19.08
+    lon: 72.84
+    weight: 1.0
+
+index:
+  # Cumulative Deviation Rainfall (CDR): spot = season-LPA anchor point +
+  # running sum of daily (actual - LPA) deviation, starting period_start.
+  kind: cumulative_deviation_mm
+  aggregation: mean # simple average of the two stations, for both rainfall and LPA
+  lpa:
+    source_id: ncdex_product_note_rainmumbai_2026
+    base_period_start_year: 1991
+    base_period_end_year: 2020
+    table_object_key: null # day-by-day LPA table not yet ingested as data — M3
+  period_start: { month: 6, day: 1 } # SW monsoon season LPA anchor: 2206.7mm
+  period_end: { month: 9, day: 30 }
+  missing_data_rule: >
+    Surface Rainfall Observation (manual, WMO-standard synoptic readings) is
+    primary. Automatic Weather Station (AWS, 15-min intervals) data serves as
+    fallback when Surface data is delayed, unavailable, or shows
+    discrepancies. The Exchange may onboard additional agencies as a further
+    fallback, with prior notice to participants.
+    (Source: ncdex_product_note_rainmumbai_2026, Exhibit 2 §5)
+
+multiplier_inr_per_point: 50 # 1mm = Rs.50.00
+tick_size: 1 # mm
+lot_size: 1
+max_order_lots: 50
+position_limit_lots: 40000 # client-wise: 40,000 lots or 5% of market-wide OI, whichever higher
+# member-wise cap (not modelled separately): 4,00,000 lots or 20% of market-wide OI, whichever higher
+margin_pct: 10 # minimum initial margin; NCCL uses a risk-based VaR model (>=99% VaR, 3-day MPOR) on top of this floor
+
+settlement:
+  method: >
+    Cash settled. Final Settlement Price (FSP) = the CDR spot value on
+    due day/expiry day. Daily mark-to-market via the Daily Settlement
+    Price (DSP).
+  timing: >
+    Last trading day = business day immediately preceding the last
+    calendar day of the contract's expiry month. Due/expiry day = the
+    calendar day immediately following the last trading day. Cash
+    settlement on a T+2 basis from the last trading day.
+  notes: >
+    No physical delivery or tender obligations. Daily Price Limit:
+    initial slab 6%, enhanced slab 3%, aggregate 9% (15-minute cooling
+    off between slabs).
+
+source_ids:
+  - ncdex_spec_rainmumbai_2026
+  - ncdex_product_note_rainmumbai_2026
+  - ncdex_launch_circular_rainmumbai_2026
+
+# Still open (SPEC docs/VERIFY.md):
+#   V12 — data/price redistribution licence terms not explicitly stated in
+#   any sourced document; IMD data reaches NCDEX via an "authenticated API
+#   feed" whose terms aren't public.

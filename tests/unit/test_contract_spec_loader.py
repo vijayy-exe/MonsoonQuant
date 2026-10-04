@@ -10,7 +10,32 @@ from mq.specs.loader import (
     load_contract_spec,
 )
 
-DRAFT_RAINCHNNAI = Path("specs/contracts/RAINCHNNAI/2026-10-04-draft.yaml")
+RESOLVED_RAINCHNNAI = Path("specs/contracts/RAINCHNNAI/2026-08-31.yaml")
+RESOLVED_RAINMUMBAI = Path("specs/contracts/RAINMUMBAI/2026-05-29.yaml")
+
+
+def _draft_spec_dict() -> dict:
+    return {
+        "contract_code": "RAINCHNNAI",
+        "spec_version": "2026-10-04",
+        "stations": "TODO_VERIFY",
+        "index": {
+            "kind": "TODO_VERIFY",
+            "aggregation": "TODO_VERIFY",
+            "lpa": "TODO_VERIFY",
+            "period_start": "TODO_VERIFY",
+            "period_end": "TODO_VERIFY",
+            "missing_data_rule": "TODO_VERIFY",
+        },
+        "multiplier_inr_per_point": "TODO_VERIFY",
+        "tick_size": "TODO_VERIFY",
+        "lot_size": "TODO_VERIFY",
+        "max_order_lots": "TODO_VERIFY",
+        "position_limit_lots": "TODO_VERIFY",
+        "margin_pct": "TODO_VERIFY",
+        "settlement": "TODO_VERIFY",
+        "source_ids": [],
+    }
 
 
 def _resolved_spec_dict() -> dict:
@@ -49,16 +74,38 @@ def _resolved_spec_dict() -> dict:
     }
 
 
-def test_draft_yaml_fixture_exists_and_is_all_pending() -> None:
-    assert DRAFT_RAINCHNNAI.exists()
-    spec = load_contract_spec(DRAFT_RAINCHNNAI, allow_draft=True)
+def test_draft_yaml_fixture_is_all_pending(tmp_path: Path) -> None:
+    f = tmp_path / "draft.yaml"
+    f.write_text(yaml.safe_dump(_draft_spec_dict()))
+    spec = load_contract_spec(f, allow_draft=True)
     assert is_draft(spec)
 
 
-def test_draft_yaml_rejected_without_allow_draft() -> None:
+def test_draft_yaml_rejected_without_allow_draft(tmp_path: Path) -> None:
+    f = tmp_path / "draft.yaml"
+    f.write_text(yaml.safe_dump(_draft_spec_dict()))
     with pytest.raises(DraftSpecRejectedError) as excinfo:
-        load_contract_spec(DRAFT_RAINCHNNAI, allow_draft=False)
+        load_contract_spec(f, allow_draft=False)
     assert "stations" in str(excinfo.value)
+
+
+def test_resolved_rainchnnai_spec_loads_without_allow_draft() -> None:
+    """Regression test: the real NCDEX-sourced spec (docs/VERIFY.md) must
+    stay fully resolved — if this starts failing, something reintroduced a
+    TODO_VERIFY field."""
+    spec = load_contract_spec(RESOLVED_RAINCHNNAI, allow_draft=False)
+    assert not is_draft(spec)
+    assert spec.contract_code == "RAINCHNNAI"
+    assert str(spec.index.period_start) == "09-01"
+    assert str(spec.index.period_end) == "12-31"
+
+
+def test_resolved_rainmumbai_spec_loads_without_allow_draft() -> None:
+    spec = load_contract_spec(RESOLVED_RAINMUMBAI, allow_draft=False)
+    assert not is_draft(spec)
+    assert spec.contract_code == "RAINMUMBAI"
+    assert str(spec.index.period_start) == "06-01"
+    assert str(spec.index.period_end) == "09-30"
 
 
 def test_resolved_spec_is_not_draft(tmp_path: Path) -> None:
