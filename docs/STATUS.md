@@ -15,7 +15,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 1 | **M0** Scaffold | ✅ done | `make check` green | repo, uv, Makefile, pre-commit, CI skeleton, docker-compose, `mq` CLI, settings, structlog, as_of io layer + test, Alembic + ledger trigger |
 | 1 | **M1** Specs + ledger live | ✅ done | ledger ≥ 1 verified daily row/contract; `mq ledger verify` passes | RAINCHNNAI and RAINMUMBAI specs **fully resolved from official NCDEX documents** (V1-V11 closed). RAINCHNNAI has a real verified ledger row; RAINMUMBAI's season is closed for 2026 (see below) |
 | 2 | **M2** Market data & DQ | 🟨 pipeline built, no real data yet | DQ gate blocks on bad data | NCDEX bhavcopy parser/normaliser + DQ05-DQ10 built and tested against the real documented schema; live fetch blocked (bot-gated), needs a manually-downloaded CSV |
-| 2 | **M3** Index engine | ⬜ not started | index reproducible for any past date | Now unblocked — real CDR methodology known (docs/VERIFY.md V3) |
+| 2 | **M3** Index engine | 🟨 engine done, DB write + proxy_error pending | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested (hand-computed values, caught a real int8-overflow bug). Not yet wired to write `index_values` rows or compare vs an official series |
 | 3 | **M4** Burn & distribution pricing | ⬜ not started | 2 independent P-measure prices + methods note | |
 | 4 | **M5** Simulator (build) | ⬜ not started | C++ vs NumPy ref agree within 2 SE | needs CMake/pybind11/OpenMP toolchain — not yet installed |
 | 5 | **M5** Simulator (validate) · **M6** MPR (start) | ⬜ not started | 1M paths < 10s; seasonal sd ±10% | |
@@ -75,12 +75,14 @@ the ledger is append-only). V12 (data-redistribution licensing) stays
 open — no document states explicit terms.
 
 ### Honesty note on the ledger rows
-Both RAINCHNNAI rows are climatology samples of **n = however many years
-are in `data/parquet/rain_grid/` at write time** (started at n=1 with only
-2023 ingested; the 1991-2020 backfill below will let a fresh forecast use
-up to n=30). Station coordinates are public engineering placeholders, not
-yet the official IMD metadata (noted in the YAML comments). Not a real
-forecast yet — proves the mechanics work on real data end-to-end.
+RAINCHNNAI has **3 ledger rows** now, each a progressively better
+`clim_v1`: v0.1.0 (n=1, proxy Oct-Dec window), v0.2.0 (n=1, real Sep-Dec
+window post-VERIFY), v0.3.0 (**n=25, real multi-year climatology**, after
+the backfill below completed — quantiles P5=357mm, P50=697mm, P95=1769mm,
+a genuine spread rather than a degenerate point). `mq ledger verify`: 3
+rows, chain intact. Station coordinates are still public engineering
+placeholders, not yet the official IMD metadata (noted in the YAML
+comments) — that's the main remaining honesty caveat.
 
 ---
 
@@ -96,17 +98,37 @@ forecast yet — proves the mechanics work on real data end-to-end.
 
 ---
 
-## Live state (what's actually running right now)
+## M3 detail (index engine built this session)
 
-- **IMD backfill 1991-2020** running in the background
-  (`.scratch/backfill.py`, not committed — scratch only), per-year
-  subprocess timeout (120s) so a slow/stuck IMD request can't hang the
-  whole run. Check progress: `tail -f .scratch/backfill.log` or
-  `ls data/parquet/rain_grid/source=imd/`. Safe to re-run — each year is
-  idempotent (skips re-download if the `.grd` file already exists).
-  A few years around 1998-2001 timed out (transient IMD server slowness,
-  not a permanent gap) — rerun those specific years later if a full 30-year
-  set matters: `write_rain_grid_year(1998)` etc.
+| Item | Status |
+|---|---|
+| `mq.index.lpa.compute_daily_lpa` — climatological per-day LPA from `rain_grid` | ✅ |
+| `mq.index.engine.compute_index` — real CDR methodology (season-LPA anchor + cumulative daily deviation) | ✅ pure function, raises loudly on drafts or data gaps |
+| Golden test, hand-computed before encoding expected values | ✅ 4 tests, including a deliberate missing-data case |
+| `index_values` DB writes, `mq.index.proxy.proxy_error` | ⬜ not started — needs an official index series to compare against, which isn't available (same bot-gate/licensing situation as market data) |
+
+---
+
+## Live state (data on disk right now)
+
+- **IMD historical backfill 1991-2020: done.** 23/30 years ingested this
+  session (plus the pre-existing 2023) = **25 years of real IMD rainfall**
+  in `data/parquet/rain_grid/source=imd/`. Missing: 1999, 2000, 2001,
+  2009, 2013, 2019 (transient IMD server timeouts/connection errors, not
+  permanent gaps — rerun individually later if a full 30 matters:
+  `write_rain_grid_year(1999)` etc. via `PYTHONPATH=src uv run mq` or a
+  Python shell). The backfill script
+  (`.scratch/backfill.py`, scratch-only, not committed) uses a 120s
+  per-year subprocess timeout so one stuck request can't hang the whole
+  run — reusable if a future backfill is needed.
+- **IMD real-time data**: Oct 1-3 2026 (full), Sep 1-10 2026 (partial —
+  Sep 11-30 still missing). The IMD real-time server was under sustained
+  strain by the end of this session (repeated timeouts on both the
+  historical and real-time endpoints) — deliberately stopped retrying
+  rather than keep hammering a public government server. Filling Sep
+  11-30 is what's needed before `compute_index` can produce a complete
+  live CDR value for RAINCHNNAI today (it currently raises a clear
+  "missing rainfall data" error for that gap, by design).
 
 ---
 
@@ -116,10 +138,10 @@ forecast yet — proves the mechanics work on real data end-to-end.
 |---|---|---|---|---|
 | F01 | Versioned contract-spec registry (YAML + source PDFs + hashes) | P0 | M1 | ✅ done, specs fully resolved |
 | F02 | Market-data ingestion (settlement, volume, OI) with provenance | P0 | M2 | 🟨 pipeline done; live fetch blocked (bot-gate) |
-| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 ingestion done; station identity resolved (V2), exact coordinates still a placeholder |
+| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 **25 years real data** (1991-2020 minus 6 gap years, + 2023) ingested; station identity resolved (V2), exact coordinates still a placeholder |
 | F04 | Climate drivers (ONI, DMI/IOD, MJO phase) | P0 | M2 | 🟨 ONI+DMI live; MJO fetch-blocked (BoM) |
 | F05 | Data-quality gate blocking publication | P0 | M2 | 🟨 DQ01-07, DQ10 done; DQ08-09 need M3 |
-| F06 | Index replication engine + proxy-error tracking | P0 | M3 | ⬜ unblocked (CDR methodology known) |
+| F06 | Index replication engine + proxy-error tracking | P0 | M3 | 🟨 `compute_index` done, golden-tested; proxy_error + DB writes pending |
 | F07 | **Prediction Ledger** (append-only, hash-chained, public) | P0 | M1→ | 🟨 fully working locally; public GitHub mirror deferred (no remote) |
 | F08 | Historical burn analysis (with detrending options) | P0 | M4 | ⬜ |
 | F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ⬜ |

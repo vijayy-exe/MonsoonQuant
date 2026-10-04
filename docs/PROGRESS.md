@@ -5,6 +5,50 @@ measured numbers.
 
 ---
 
+## 2026-10-04 — M3.1 index engine; IMD backfill completes; real climatology
+
+Continuation of the same day's work, after the VERIFY/M2 entry below.
+
+- **M3.1**: `mq.index.lpa.compute_daily_lpa` (climatological per-day LPA
+  from `rain_grid`) and `mq.index.engine.compute_index` (the real CDR
+  algorithm: spot = season-LPA anchor + cumulative daily deviation,
+  exactly per the official product notes). Pure functions, no I/O.
+  - Golden test (`tests/golden/test_index_engine_golden.py`) hand-computed
+    a 3-day example before encoding expected values. This caught a real
+    bug: `season_lpa_total`'s `month*100+day` key overflowed polars'
+    int8 dtype (max 127; Sep 1 = 901), silently wrapping and zeroing
+    every season total. Fixed by casting to Int32 first — the kind of
+    bug that golden tests exist to catch.
+- **IMD backfill 1991-2020 completed**: 23/30 years ingested this run
+  (plus the pre-existing 2023) = **25 years of real gridded rainfall**.
+  Missing 1999/2000/2001/2009/2013/2019 — transient IMD server
+  timeouts/connection resets, not permanent gaps; individually rerunnable.
+  The per-year subprocess-timeout design (logged in the previous entry)
+  worked as intended throughout — no hangs, every stuck year was skipped
+  and logged within 120s.
+- Attempted to also backfill the live season's real-time data
+  (Sep 1 - Oct 4 2026) to get a complete current CDR value. Got Sep 1-10
+  and Oct 1-3 before the IMD real-time server started timing out
+  consistently — stopped retrying rather than keep hammering a public
+  government server under evident strain from this session's traffic.
+  Sep 11-30 remains a gap; `compute_index` correctly refuses to produce a
+  value across it rather than silently interpolating.
+- **Wrote a real multi-year `clim_v1` v0.3.0 ledger row** for RAINCHNNAI
+  using the full 25-year backfilled climatology: quantiles P5=357mm,
+  P25=584mm, P50=697mm, P75=1027mm, P95=1769mm — a genuine distribution,
+  not the earlier n=1 degenerate point. `mq ledger verify`: 3 rows (v0.1.0
+  proxy-window, v0.2.0 real-window n=1, v0.3.0 real-window n=25), chain
+  intact. Exported to `ledger/2026/10/04.jsonl`.
+- **Measured:** `make check` green — 59/59 tests pass, 0 lint issues,
+  `mypy --strict` clean on 40 source files.
+
+**Next task:** fill the Sep 11-30 real-time gap (once the IMD server
+settles) to get a complete live CDR index value; wire `compute_index`
+output to `index_values` DB writes; or move to M4 (burn/distribution
+pricing), which only needs the index engine's output shape, not live data.
+
+---
+
 ## 2026-10-04 — Resolve VERIFY, M2 market-data pipeline
 
 Continuation of the same day's work: resolved the three blockers logged
