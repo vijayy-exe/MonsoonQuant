@@ -15,21 +15,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-
-def _nearest_cell(rain_grid: pl.DataFrame, *, lat: float, lon: float) -> tuple[float, float]:
-    cell = (
-        rain_grid.with_columns(
-            ((pl.col("lat") - lat) ** 2 + (pl.col("lon") - lon) ** 2).alias("_dist2")
-        )
-        .sort("_dist2")
-        .select("lat", "lon")
-        .unique(maintain_order=True)
-        .head(1)
-    )
-    if cell.height == 0:
-        raise ValueError("rain_grid is empty — no cell to select")
-    row = cell.row(0)
-    return float(row[0]), float(row[1])
+from mq.io.grid import nearest_cell
 
 
 @dataclass(frozen=True)
@@ -56,7 +42,7 @@ def compute_daily_lpa(
     the official LPA tables are defined over the 365 non-leap calendar
     days (SPEC's product-note example walks 1971..2020 by calendar date,
     which only exists in leap years for Feb 29)."""
-    cell_lat, cell_lon = _nearest_cell(rain_grid, lat=lat, lon=lon)
+    cell_lat, cell_lon = nearest_cell(rain_grid, lat=lat, lon=lon)
     cell_df = rain_grid.filter((pl.col("lat") == cell_lat) & (pl.col("lon") == cell_lon))
 
     base = cell_df.filter(

@@ -17,6 +17,8 @@ from datetime import date
 
 import polars as pl
 
+from mq.io.grid import nearest_cell
+
 MODEL_ID = "clim_v1"
 MODEL_VERSION = "0.1.0"
 
@@ -32,22 +34,6 @@ class ClimatologyForecast:
     n_years: int
     quantiles: dict[str, float]
     sample_values: list[float]
-
-
-def _nearest_cell(rain_grid: pl.DataFrame, *, lat: float, lon: float) -> tuple[float, float]:
-    cell = (
-        rain_grid.with_columns(
-            ((pl.col("lat") - lat) ** 2 + (pl.col("lon") - lon) ** 2).alias("_dist2")
-        )
-        .sort("_dist2")
-        .select("lat", "lon")
-        .unique(maintain_order=True)
-        .head(1)
-    )
-    if cell.height == 0:
-        raise ValueError("rain_grid is empty — no cell to select")
-    row = cell.row(0)
-    return float(row[0]), float(row[1])
 
 
 def remaining_rain_climatology(
@@ -68,7 +54,7 @@ def remaining_rain_climatology(
     period end" — the climatological question, not a forecast conditioned
     on anything observed this season (that's `enso_clim_v1` and later
     rungs of the ladder)."""
-    cell_lat, cell_lon = _nearest_cell(rain_grid, lat=lat, lon=lon)
+    cell_lat, cell_lon = nearest_cell(rain_grid, lat=lat, lon=lon)
     df = rain_grid.filter((pl.col("lat") == cell_lat) & (pl.col("lon") == cell_lon))
 
     years = sorted(df["date"].dt.year().unique().to_list())

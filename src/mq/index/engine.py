@@ -23,6 +23,7 @@ from datetime import date, timedelta
 import polars as pl
 
 from mq.index.lpa import DailyLPA, compute_daily_lpa, season_lpa_total
+from mq.io.grid import nearest_cell
 from mq.specs.contract import ContractSpec, LPARef, MonthDay
 from mq.specs.loader import is_draft
 
@@ -51,18 +52,7 @@ def _station_daily_rainfall(rain_grid: pl.DataFrame, *, lat: float, lon: float) 
     """This station's daily rainfall at its nearest grid cell — columns
     (date, rain_mm). Uses the same nearest-cell logic as the LPA module so
     both draw from the identical station proxy."""
-    cell = (
-        rain_grid.with_columns(
-            ((pl.col("lat") - lat) ** 2 + (pl.col("lon") - lon) ** 2).alias("_dist2")
-        )
-        .sort("_dist2")
-        .select("lat", "lon")
-        .unique(maintain_order=True)
-        .head(1)
-    )
-    if cell.height == 0:
-        raise ValueError("rain_grid is empty — no cell to select")
-    cell_lat, cell_lon = cell.row(0)
+    cell_lat, cell_lon = nearest_cell(rain_grid, lat=lat, lon=lon)
     return rain_grid.filter((pl.col("lat") == cell_lat) & (pl.col("lon") == cell_lon)).select(
         "date", "rain_mm"
     )
