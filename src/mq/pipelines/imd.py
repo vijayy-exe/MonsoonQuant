@@ -18,6 +18,7 @@ import polars as pl
 
 from mq.pipelines.dq import (
     DQCheckResult,
+    DQGateFailedError,
     dq01_missing_dates,
     dq02_duplicate_keys,
     dq03_value_range,
@@ -45,16 +46,6 @@ RAIN_GRID_EXPECTED_SCHEMA: dict[str, pl.DataType] = {
     "product_version": pl.String(),
     "raw_sha256": pl.String(),
 }
-
-
-class DQGateFailedError(RuntimeError):
-    """Raised when a DQ01-DQ04 check fails for an ingested dataset — per
-    SPEC §8.2, this must block publication."""
-
-    def __init__(self, failures: list[DQCheckResult]):
-        self.failures = failures
-        summary = "; ".join(f"{r.check_id}={r.details}" for r in failures)
-        super().__init__(f"DQ gate failed, publication blocked: {summary}")
 
 
 def run_rain_grid_dq(df: pl.DataFrame, *, year: int) -> list[DQCheckResult]:

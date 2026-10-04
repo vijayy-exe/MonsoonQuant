@@ -117,9 +117,115 @@ def dq04_schema_drift(
     )
 
 
+def dq05_stale_market_data(
+    df: pl.DataFrame,
+    *,
+    date_col: str,
+    dataset: str,
+    as_of: date,
+    max_stale_days: int = 2,
+) -> DQCheckResult:
+    """Warn if the most recent date in `df` is more than `max_stale_days`
+    behind `as_of`."""
+    if df.is_empty():
+        return DQCheckResult(
+            check_id="DQ05", dataset=dataset, status="warn", details={"reason": "no rows"}
+        )
+    latest_value = df[date_col].max()
+    assert isinstance(latest_value, date)
+    latest = latest_value
+    staleness_days = (as_of - latest).days
+    status: Severity = "warn" if staleness_days > max_stale_days else "pass"
+    return DQCheckResult(
+        check_id="DQ05",
+        dataset=dataset,
+        status=status,
+        details={
+            "latest_date": str(latest),
+            "as_of": as_of.isoformat(),
+            "staleness_days": staleness_days,
+        },
+    )
+
+
+def dq06_unknown_contract_code(
+    df: pl.DataFrame, *, code_col: str, dataset: str, known_codes: set[str]
+) -> DQCheckResult:
+    """Warn if `df[code_col]` contains a contract code outside `known_codes`."""
+    unknown = df.filter(~pl.col(code_col).is_in(list(known_codes)))[code_col].unique().to_list()
+    status: Severity = "warn" if unknown else "pass"
+    return DQCheckResult(
+        check_id="DQ06", dataset=dataset, status=status, details={"unknown_codes": unknown}
+    )
+
+
+def dq07_raw_hash_revision(
+    *,
+    dataset: str,
+    series_id: str,
+    trade_date: date,
+    new_sha256: str,
+    previous_sha256: str | None,
+) -> DQCheckResult:
+    """Warn when an already-ingested (series_id, trade_date)'s raw file hash
+    has changed — a silent revision the pipeline must not hide."""
+    if previous_sha256 is None or previous_sha256 == new_sha256:
+        return DQCheckResult(check_id="DQ07", dataset=dataset, status="pass", details={})
+    return DQCheckResult(
+        check_id="DQ07",
+        dataset=dataset,
+        status="warn",
+        details={
+            "series_id": series_id,
+            "trade_date": trade_date.isoformat(),
+            "previous_sha256": previous_sha256,
+            "new_sha256": new_sha256,
+        },
+    )
+
+
+def dq10_settle_outside_price_band(
+    df: pl.DataFrame,
+    *,
+    settle_col: str,
+    prev_settle_col: str,
+    dataset: str,
+    initial_slab_pct: float = 6.0,
+) -> DQCheckResult:
+    """Warn if a settle price moves outside the DPL initial-slab band versus
+    the previous settle (VERIFY V7: RAINCHNNAI/RAINMUMBAI initial slab 6%).
+
+    Percentage bands are a crude approximation near a zero/negative base —
+    CDR settle values are deviations and can cross zero, unlike a normal
+    commodity price. This is a DQ *signal*, not a replication of NCDEX's
+    own (undocumented) near-zero band handling."""
+    band_width = pl.col(prev_settle_col).abs() * (initial_slab_pct / 100)
+    band = df.with_columns(
+        (pl.col(prev_settle_col) + band_width).alias("_hi"),
+        (pl.col(prev_settle_col) - band_width).alias("_lo"),
+    )
+    breaches = band.filter(
+        (pl.col(settle_col) > pl.col("_hi")) | (pl.col(settle_col) < pl.col("_lo"))
+    )
+    status: Severity = "warn" if breaches.height > 0 else "pass"
+    return DQCheckResult(
+        check_id="DQ10", dataset=dataset, status=status, details={"breach_count": breaches.height}
+    )
+
+
 def gate(results: list[DQCheckResult]) -> bool:
     """True if publication should proceed — no result in `results` failed."""
     return all(r.status != "fail" for r in results)
+
+
+class DQGateFailedError(RuntimeError):
+    """Raised when a DQ check fails for an ingested dataset — per SPEC
+    §8.2, this must block publication."""
+
+    def __init__(self, failures: list[DQCheckResult]):
+        self.failures = failures
+        summary = "; ".join(f"{r.check_id}={r.details}" for r in failures)
+        super().__init__(f"DQ gate failed, publication blocked: {summary}")
 
 
 def persist_results(results: list[DQCheckResult], *, run_at: datetime | None = None) -> None:
