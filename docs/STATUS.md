@@ -15,8 +15,8 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 1 | **M0** Scaffold | ✅ done | `make check` green | repo, uv, Makefile, pre-commit, CI skeleton, docker-compose, `mq` CLI, settings, structlog, as_of io layer + test, Alembic + ledger trigger |
 | 1 | **M1** Specs + ledger live | ✅ done | ledger ≥ 1 verified daily row/contract; `mq ledger verify` passes | RAINCHNNAI and RAINMUMBAI specs **fully resolved from official NCDEX documents** (V1-V11 closed). RAINCHNNAI has a real verified ledger row; RAINMUMBAI's season is closed for 2026 (see below) |
 | 2 | **M2** Market data & DQ | 🟨 pipeline built, no real data yet | DQ gate blocks on bad data | NCDEX bhavcopy parser/normaliser + DQ05-DQ10 built and tested against the real documented schema; live fetch blocked (bot-gated), needs a manually-downloaded CSV |
-| 2 | **M3** Index engine | 🟨 engine done, DB write + proxy_error pending | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested (hand-computed values, caught a real int8-overflow bug). Not yet wired to write `index_values` rows or compare vs an official series |
-| 3 | **M4** Burn & distribution pricing | ⬜ not started | 2 independent P-measure prices + methods note | |
+| 2 | **M3** Index engine | ✅ done | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested. `index_values` DB writer and `proxy_error` (ready, no official series to compare against yet) both built |
+| 3 | **M4** Burn & distribution pricing | 🟨 burn done (M4.1) with a **real persisted result**, distribution fitting (M4.2) not started | 2 independent P-measure prices + methods note | `mq.pricing.burn` reconstructed all 31 historical seasons from real data: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14. Written to `valuations` for all 3 active RAINCHNNAI series |
 | 4 | **M5** Simulator (build) | ⬜ not started | C++ vs NumPy ref agree within 2 SE | needs CMake/pybind11/OpenMP toolchain — not yet installed |
 | 5 | **M5** Simulator (validate) · **M6** MPR (start) | ⬜ not started | 1M paths < 10s; seasonal sd ±10% | |
 | 6 | **M6** MPR (finish) · **M7** Forecasting (start) | ⬜ not started | λ series w/ CIs live; walk-forward runs | |
@@ -98,37 +98,43 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M3 detail (index engine built this session)
+## M3 detail (index engine, complete)
 
 | Item | Status |
 |---|---|
 | `mq.index.lpa.compute_daily_lpa` — climatological per-day LPA from `rain_grid` | ✅ |
 | `mq.index.engine.compute_index` — real CDR methodology (season-LPA anchor + cumulative daily deviation) | ✅ pure function, raises loudly on drafts or data gaps |
 | Golden test, hand-computed before encoding expected values | ✅ 4 tests, including a deliberate missing-data case |
-| `index_values` DB writes, `mq.index.proxy.proxy_error` | ⬜ not started — needs an official index series to compare against, which isn't available (same bot-gate/licensing situation as market data) |
+| `mq.io.grid.nearest_cell` — shared, performant cell lookup | ✅ fixed a real bug: the original per-module implementations sorted the *entire* multi-decade rain_grid (tens of millions of rows) to find one nearest cell — 12+ minutes on the real dataset. Deduping to distinct cells first (~5,000) before sorting: 2.6s |
+| `compute_index`'s daily lookup — vectorized via joins | ✅ fixed a second real bug: one `.filter()` call per (day, station) scaled to thousands of calls for a multi-decade loop. Replaced with 2 left-joins + `mean_horizontal`. Single call over the full 56M-row dataset: ~14s |
+| `index_values` DB writer (`mq.index.writer`) | ✅ **written for real**: 99 rows (33 real dates × 3 active series) from the actual Sep1-Oct3 2026 CDR reconstruction |
+| `mq.index.proxy.proxy_error` | ✅ built and tested; nothing to run it against yet — no official NCDEX settlement series available (same bot-gate/licensing situation as market data) |
 
 ---
 
-## Live state (data on disk right now)
+## Live state (real data now on disk / in the DB)
 
-- **IMD historical backfill 1991-2020: done.** 23/30 years ingested this
-  session (plus the pre-existing 2023) = **25 years of real IMD rainfall**
-  in `data/parquet/rain_grid/source=imd/`. Missing: 1999, 2000, 2001,
-  2009, 2013, 2019 (transient IMD server timeouts/connection errors, not
-  permanent gaps — rerun individually later if a full 30 matters:
-  `write_rain_grid_year(1999)` etc. via `PYTHONPATH=src uv run mq` or a
-  Python shell). The backfill script
-  (`.scratch/backfill.py`, scratch-only, not committed) uses a 120s
-  per-year subprocess timeout so one stuck request can't hang the whole
-  run — reusable if a future backfill is needed.
-- **IMD real-time data**: Oct 1-3 2026 (full), Sep 1-10 2026 (partial —
-  Sep 11-30 still missing). The IMD real-time server was under sustained
-  strain by the end of this session (repeated timeouts on both the
-  historical and real-time endpoints) — deliberately stopped retrying
-  rather than keep hammering a public government server. Filling Sep
-  11-30 is what's needed before `compute_index` can produce a complete
-  live CDR value for RAINCHNNAI today (it currently raises a clear
-  "missing rainfall data" error for that gap, by design).
+- **IMD historical backfill 1991-2020: fully complete.** All 30 years
+  ingested (plus the pre-existing 2023) = **31 years of real IMD
+  rainfall** in `data/parquet/rain_grid/source=imd/`, zero gaps. (Six
+  years hit transient timeouts on the first pass — all six succeeded on
+  retry once the per-year subprocess-timeout script was re-run; see
+  docs/PROGRESS.md for the full story.)
+- **IMD real-time data: Sep 1 - Oct 3 2026, complete**, 33/33 days. Hit
+  repeated IMD server timeouts filling this gap (both historical and
+  real-time endpoints showed strain); retried once the server recovered
+  rather than force it — all days eventually succeeded.
+- **The actual live CDR index for RAINCHNNAI, computed end-to-end from
+  real data**: season-LPA anchor = 896.54mm, observed_to_date (as of Oct
+  3, 2026) = **815.3mm**. Written to `index_values` for all 3 currently
+  active series (OCT26/NOV26/DEC26).
+- **Real historical burn analysis**, all 31 seasons, no synthetic/proxy
+  data: n=31, mean=905.6mm, median=843.4mm, sd=388.5, P5=449.6, P95=1699.0,
+  skew=1.14 (right-skewed, as rainfall totals typically are). Written to
+  `valuations` (method=burn, measure=P) for all 3 active series.
+- Scratch backfill scripts (`.scratch/*.py`, not committed, gitignored)
+  are reusable if any future gap needs filling — 120s-per-year subprocess
+  timeout pattern, proven to recover cleanly from transient IMD outages.
 
 ---
 
@@ -138,12 +144,12 @@ comments) — that's the main remaining honesty caveat.
 |---|---|---|---|---|
 | F01 | Versioned contract-spec registry (YAML + source PDFs + hashes) | P0 | M1 | ✅ done, specs fully resolved |
 | F02 | Market-data ingestion (settlement, volume, OI) with provenance | P0 | M2 | 🟨 pipeline done; live fetch blocked (bot-gate) |
-| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 **25 years real data** (1991-2020 minus 6 gap years, + 2023) ingested; station identity resolved (V2), exact coordinates still a placeholder |
+| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 **31 years real data, zero gaps** (1991-2020 + 2023) + real-time Sep1-Oct3 2026 all ingested; station identity resolved (V2), exact coordinates still a placeholder |
 | F04 | Climate drivers (ONI, DMI/IOD, MJO phase) | P0 | M2 | 🟨 ONI+DMI live; MJO fetch-blocked (BoM) |
 | F05 | Data-quality gate blocking publication | P0 | M2 | 🟨 DQ01-07, DQ10 done; DQ08-09 need M3 |
-| F06 | Index replication engine + proxy-error tracking | P0 | M3 | 🟨 `compute_index` done, golden-tested; proxy_error + DB writes pending |
+| F06 | Index replication engine + proxy-error tracking | P0 | M3 | ✅ `compute_index` done, golden-tested, 2 real performance bugs fixed; **real live CDR value computed and written** (observed_to_date=815.3mm as of Oct 3 2026); proxy_error has nothing to compare against yet |
 | F07 | **Prediction Ledger** (append-only, hash-chained, public) | P0 | M1→ | 🟨 fully working locally; public GitHub mirror deferred (no remote) |
-| F08 | Historical burn analysis (with detrending options) | P0 | M4 | ⬜ |
+| F08 | Historical burn analysis (with detrending options) | P0 | M4 | 🟨 real 31-season reconstruction done and persisted; detrending options not started |
 | F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ⬜ |
 | F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | ⬜ |
@@ -194,10 +200,11 @@ explicit terms; treat as not cleared for redistribution.
 6. **GitHub remote** — not created yet (local git only, per your
    instruction). Needed for the ledger's public-repo mirror credibility
    feature (SPEC §2.1).
-7. **Full IMD backfill vs 1991-2020** — chose the IMD/NCDEX's own 30-year
-   LPA base period as a well-justified default (also exactly matches
-   RAINMUMBAI's cited LPA window; RAINCHNNAI's is 1971-2020 if an even
-   longer history is wanted later).
+7. **Backfill could extend further** — currently 1991-2020 (the IMD/
+   NCDEX 30-year LPA base period, also RAINMUMBAI's own cited window) +
+   2023, all complete with zero gaps. RAINCHNNAI's own LPA base period is
+   1971-2020 — extending back to 1971 would let its burn/LPA computations
+   use its full official window rather than a 30-year subset of it.
 
 ## Known environment quirks (don't re-debug these — see docs/DECISIONS.md)
 

@@ -5,6 +5,72 @@ measured numbers.
 
 ---
 
+## 2026-10-04 — Close the remaining gaps; M4.1 burn analysis on real data
+
+Continuation of the same day, after resolving the backfill/VERIFY/MJO
+blockers (two entries below). The user asked to fill any remaining gaps
+and keep building.
+
+- **IMD backfill: 1991-2020 now fully complete, zero gaps.** All 6 years
+  that failed in the earlier run (1999/2000/2001/2009/2013/2019)
+  succeeded on retry once the server recovered — confirmed the earlier
+  failures were transient (IMD responded in 3-38s on retry, vs. hanging
+  6+ hours on the very first, unprotected attempt). Now 31 years of real
+  data on disk.
+- **mq.specs.registry**: writes the resolved ContractSpec and one
+  `contracts` row per listed series into the DB, from each contract's
+  real launch calendar (not previously done — M1/M2 had only validated
+  specs in memory, never persisted the contract calendar itself). Real
+  data for both contracts: RAINCHNNAI Sep-Dec 2026, RAINMUMBAI Jun-Sep
+  2026 (all four RAINMUMBAI series already expired this season).
+- **M3 completed**: `mq.index.writer.write_index_values` and
+  `mq.index.proxy.proxy_error`, closing out the two pieces STATUS.md had
+  marked pending.
+- **M4.1 historical burn analysis** (`mq.pricing.burn`): reconstructs
+  every historical season's final CDR value via `compute_index`. Golden
+  test hand-computes 3 synthetic seasons and cross-checks mean/median/sd
+  against Python's `statistics` module.
+- **Two real performance bugs found and fixed** while actually running
+  this against 31 years of real data (not caught by any unit test, since
+  small fixtures hide O(n) scaling problems):
+  1. `nearest_cell` (3 duplicated implementations) sorted the *entire*
+     multi-decade `rain_grid` — tens of millions of rows — to find a
+     single nearest point. Consolidated into `mq.io.grid.nearest_cell`,
+     which dedupes to ~5,000 distinct cells first: 12+ minutes -> 2.6s.
+  2. `compute_index`'s daily lookup called `.filter()` once per
+     (day, station) — thousands of calls for a multi-year loop, each
+     paying per-call overhead independent of actual work. Replaced with
+     vectorized joins + `mean_horizontal`. A single call over the full
+     56M-row dataset: ~14s. All 8 golden tests still pass unchanged,
+     confirming identical output.
+  3. The first attempt at this burn analysis ran 16+ CPU-minutes without
+     finishing before the fixes — killed rather than let it run
+     indefinitely; a smaller test would never have surfaced this.
+- **IMD real-time data: Sep 1 - Oct 3 2026, now complete** (33/33 days).
+  Filled the remaining Sep 11-30 gap in two passes once the IMD
+  real-time server recovered from the strain noted in the previous entry.
+- **The actual live CDR index for RAINCHNNAI, computed end-to-end from
+  real data for the first time this session**: season-LPA anchor =
+  896.54mm (computed from the real 1991-2020+2023 base period), observed
+  rainfall Sep1-Oct3 2026 = real IMD data, **observed_to_date = 815.3mm**
+  as of 2026-10-03. Written to `index_values`, 99 rows (33 dates × 3
+  active series: OCT26/NOV26/DEC26).
+- **Real historical burn statistics, all 31 seasons** (no synthetic data
+  anywhere in this number): n=31, mean=905.6mm, median=843.4mm, sd=388.5,
+  P5=449.6, P25=647.9, P75=1049.9, P95=1699.0, skew=1.14 (right-skewed,
+  as expected for rainfall totals), ES-lower-5%=345.3, ES-upper-5%=1952.8.
+  Written to `valuations` (method=burn, measure=P) for all 3 active
+  series via the new `mq.pricing.writer.write_burn_valuation`.
+- **Measured:** `make check` green — 75/75 tests pass, 0 lint issues,
+  `mypy --strict` clean on 46 source files.
+
+**Next task:** M4.2 (distribution fitting: Gamma/Lognormal/KDE/bootstrap
+against the real 31-season burn sample, with rolling-origin CV) is the
+natural continuation of M4. M5 (C++ simulator) needs a toolchain decision
+first (pybind11/scikit-build-core/OpenMP not yet installed).
+
+---
+
 ## 2026-10-04 — M3.1 index engine; IMD backfill completes; real climatology
 
 Continuation of the same day's work, after the VERIFY/M2 entry below.
