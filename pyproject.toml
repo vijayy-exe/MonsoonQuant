@@ -1,0 +1,66 @@
+[project]
+name = "monsoonquant"
+version = "0.1.0"
+description = "Prices, forecasts, explains and hedges India's exchange-traded rainfall futures. Research analytics, not trading advice."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Vijay BS" }]
+
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "polars>=1.17",
+    "pandera[polars]>=0.21",
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "typer>=0.14",
+    "structlog>=24.4",
+    "orjson>=3.10",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+mq = "mq.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.122",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mq"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# docs/ holds reference specs (copied verbatim) with embedded Python
+# snippets in fenced code blocks — never let ruff rewrite those.
+extend-exclude = ["docs/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["mq"]
+mypy_path = "src"
+exclude = ["^notebooks/", "^research/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["src/mq"]

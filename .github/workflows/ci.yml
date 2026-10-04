@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy --strict src/mq
+
+  unit-golden-property:
+    runs-on: ubuntu-latest
+    needs: lint-and-types
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run pytest tests/unit tests/golden tests/property -q
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: lint-and-types
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq
+          POSTGRES_DB: monsoonquant
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mq -d monsoonquant"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MQ_DATABASE_URL: postgresql+psycopg://mq:mq@localhost:5432/monsoonquant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run alembic -c src/mq/db/alembic.ini upgrade head
+      - run: uv run pytest tests/integration -q
+
+  # Added once web/ has a package.json (M13):
+  # web-build, playwright-smoke
+
+  # Added once core/ has a CMakeLists.txt (M5):
+  # cpp-build-and-test
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

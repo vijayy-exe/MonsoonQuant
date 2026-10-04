@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# C++ build
+core/build/
+core/CMakeFiles/
+CMakeCache.txt
+*.so
+*.dylib
+
+# Node / web
+web/node_modules/
+web/.next/
+web/out/
+pnpm-debug.log*
+
+# Data (raw files are content-addressed; never commit real data payloads)
+data/
+*.parquet
+!tests/**/*.parquet
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log

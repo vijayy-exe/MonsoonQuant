@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: mq-postgres
+    environment:
+      POSTGRES_USER: mq
+      POSTGRES_PASSWORD: mq
+      POSTGRES_DB: monsoonquant
+    ports:
+      # Host 5433 -> avoid clashing with a native Homebrew postgresql service
+      # that may already be bound to localhost:5432.
+      - "5433:5432"
+    volumes:
+      - mq_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mq -d monsoonquant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.18.0
+    container_name: mq-mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri /mlruns
+      --default-artifact-root /mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mq_mlflow_data:/mlruns
+
+volumes:
+  mq_postgres_data:
+  mq_mlflow_data:
