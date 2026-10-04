@@ -5,6 +5,73 @@ measured numbers.
 
 ---
 
+## 2026-10-04 — Resolve VERIFY, M2 market-data pipeline
+
+Continuation of the same day's work: resolved the three blockers logged
+at the end of the previous entry, then moved to M2.
+
+- **VERIFY V1-V11 closed for real.** Searched ncdex.com directly (public
+  downloads, robots.txt allows everything) and found the actual official
+  documents: Contract Specifications, Product Notes (CDR spot-price
+  methodology), and launch circulars for both RAINCHNNAI and RAINMUMBAI,
+  plus the UDiFF bhavcopy format spec. 9 PDFs registered and hashed in
+  `specs/sources/raw/`. Rewrote both `specs/contracts/*.yaml` from DRAFT
+  to fully resolved — `mq specs validate` now passes both without
+  `--allow-draft`.
+  - Real values corrected an earlier guess: RAINCHNNAI's period is
+    **Sep 1-Dec 31**, not the Oct 1 proxy used in the first ledger row.
+    RAINMUMBAI's Jun 1-Sep 30 proxy guess turned out correct.
+  - LPA base periods: Chennai 1971-2020, Mumbai 1991-2020 (both IMD
+    climatological normals, stated in the product notes).
+  - Wrote a new `clim_v1` v0.2.0 ledger row for RAINCHNNAI using the real
+    period (old v0.1.0 row kept — ledger is append-only). Chain verified:
+    2 rows, intact.
+  - V12 (data licensing) stays open — no document states explicit terms.
+- **IMD backfill 1991-2020** (the WMO/IMD 30-year climate-normal period,
+  also RAINMUMBAI's own cited LPA window) started as a background job.
+  First attempt hung 6+ hours on a stalled connection (imdlib sets no
+  request timeout) — killed it and rewrote the backfill to run each year
+  in a subprocess with a 120s timeout, skipping and logging instead of
+  blocking. Confirmed working: 1991 took 3s on retry (the earlier hang
+  was a transient stall, not a real server limitation). Running at commit
+  time; some years in the 1998-2001 range timed out and were skipped
+  (rerunnable individually later).
+- **M2**: NCDEX market-data ingestion pipeline (`mq.pipelines.ncdex`).
+  Found and registered the real UDiFF Final Bhav Copy column format
+  (34 columns, ISO tags) from NCDEX's own "Consolidated File format"
+  circular. Built parse → filter-to-contracts → normalise-to-
+  market_quotes → DQ-gate → upsert, tested against a schema-accurate
+  synthetic fixture (live fetch isn't available — see below).
+  - Added DQ05 (stale data), DQ06 (unknown contract code), DQ07 (silent
+    raw-file revision), DQ10 (settle outside the real 6% DPL band from
+    VERIFY V7) to `mq.pipelines.dq`. DQ08/DQ09 deferred to M3 (need the
+    index engine). `DQGateFailedError` moved from `imd.py` to `dq.py`
+    since it's shared, not IMD-specific.
+  - **Live bhavcopy fetch is blocked**: ncdex.com/markets/bhavcopy's
+    backend (`/api/bhavcopy`) sits behind a JS fingerprint/bot-detection
+    challenge — confirmed directly in the page's own served JS
+    (`Fingerprint.start("/__verify/fp", "url=%2Fapi%2Fbhavcopy", ...)`).
+    Not worked around — same policy as the earlier BoM/MJO decision:
+    scripting past an explicit anti-bot control isn't something to do
+    quietly. The pipeline is fully built and tested against the real
+    schema; it just needs a manually-downloaded CSV (or a future real
+    browser session) to go live.
+- Checked NCDEX's robots.txt: `Disallow:` (empty) — no restriction there;
+  the blocker is specifically the bot-detection layer, not robots.txt/ToS.
+- **Measured:** `make check` green — 55/55 tests pass (up from 45),
+  0 lint issues, `mypy --strict` clean on 38 source files.
+
+**Gate status:** M1's gate was already met; this entry closes out its
+remaining open items (real specs, not drafts). M2's gate ("DQ gate blocks
+on bad data") is met for the pipeline logic (tested); not yet exercised
+on real NCDEX data pending the fetch blocker.
+
+**Next task:** M3 (index engine) is unblocked now that the real CDR
+methodology is known — recommended next step. Alternatively: resolve the
+bhavcopy/MJO fetch blockers if real market/MJO data matters before M3.
+
+---
+
 ## 2026-10-04 — M1.1–M1.4 — Specs, climate ingestion, ledger live
 
 - **M1.1** Source register (`mq.specs.sources`, `mq sources add`/`list`):

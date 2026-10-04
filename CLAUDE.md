@@ -4,15 +4,15 @@ Spec: docs/SPEC.md (this master file — copied from the original build spec).
 Read §0 and the current milestone before coding. Status/tracker: docs/STATUS.md.
 
 ## Current milestone
-M1 — Specs, climate ingestion, ledger live — gate met for RAINCHNNAI (1 real
-ledger row, `mq ledger verify` passes). RAINMUMBAI deferred (no open proxy
-season today) and real VERIFY closure still needs the official NCDEX PDFs.
-Next: M2 (market data ingestion, DQ05-DQ10) on current DRAFT specs, or
-address an open blocker in docs/STATUS.md first.
+M0 and M1 are done. VERIFY V1-V11 are closed from the real official NCDEX
+documents (found directly, not supplied) — both contract specs are fully
+resolved, no longer drafts. M2 (market-data pipeline) is built and tested
+but has no real data yet (NCDEX's bhavcopy API is bot-gated). M3 (index
+engine) is next and unblocked — the real CDR methodology is known.
 
-M0 (scaffold) and M1 (specs/loader, IMD+ONI+DMI ingestion, ledger hash
-chain + writer + verify + export) are done — see docs/STATUS.md for the
-full breakdown and docs/PROGRESS.md for measured numbers.
+See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
+numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
+still open (V12 licensing, MJO/BoM block, bhavcopy fetch block).
 
 ## Loop
 plan → failing test → implement → `make check` → PROGRESS.md entry → conventional commit

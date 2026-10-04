@@ -4,6 +4,59 @@ Format per entry: decision, alternatives considered, reason, date.
 
 ---
 
+## 2026-10-04 — Resolved VERIFY V1-V11 by finding the official NCDEX PDFs directly
+
+**Decision:** Instead of waiting for the user to supply the NCDEX
+contract-specification PDFs, searched for and downloaded them directly
+from ncdex.com (Contract Specifications, Product Notes, launch circulars
+for both RAINCHNNAI and RAINMUMBAI, plus the UDiFF bhavcopy format spec).
+Registered all of them as hashed sources and rewrote both contract specs
+from draft to fully resolved.
+
+**Alternatives:** (a) keep waiting on the user; (b) proceed with the
+proxy/draft values indefinitely.
+
+**Reason:** The documents are NCDEX's own public downloads, linked
+directly from their product pages (`ncdex.com/products/RAINCHNNAI` etc.)
+— no login, no paywall, robots.txt allows everything. This is exactly
+the kind of official primary source SPEC §0.3 wants cited, just reached by
+searching rather than waiting to be handed. Found real values that
+*corrected* an earlier guess: RAINCHNNAI's real period is Sep 1-Dec 31,
+not the Oct 1 proxy used for the first ledger row.
+
+**Verification note:** every numeric value placed in
+`specs/contracts/*.yaml` is quoted or directly stated in a registered,
+hashed source document — none of this is model-recalled background
+knowledge about NCDEX being presented as sourced fact.
+
+---
+
+## 2026-10-04 — NCDEX's bhavcopy API is bot-gated; not worked around
+
+**Decision:** `mq.pipelines.ncdex` ingests a manually-downloaded bhavcopy
+CSV rather than fetching live. ncdex.com/markets/bhavcopy is a JS app
+whose backend (`/api/bhavcopy`) is guarded by a fingerprint challenge —
+the page's own served JS runs `Fingerprint.start("/__verify/fp",
+"url=%2Fapi%2Fbhavcopy", ...)` before granting a `__hd_fingerprint`
+cookie needed to call the API.
+
+**Alternatives:** (a) script the fingerprint challenge (execute/replicate
+the JS collection logic headlessly to mint a valid cookie); (b) use real
+browser automation once available; (c) ingest manually-downloaded CSVs
+for now.
+
+**Reason:** (a) is deliberately defeating an anti-bot control the site
+operator put there on purpose — the same category of action declined for
+BoM/MJO earlier today, for the same reason. (b) wasn't available this
+session (claude-in-chrome extension not connected). Chose (c): the
+parser/normalizer/DQ pipeline is fully built and tested against the
+*real* documented UDiFF schema, so a human (or a future legitimate
+browser session) dropping a downloaded CSV into the pipeline is all
+that's needed to go live — nothing architectural is blocked, only the
+one automated-fetch step.
+
+---
+
 ## 2026-10-04 — Proxy monsoon windows for `clim_v1`, pending VERIFY V3
 
 **Decision:** Until the official NCDEX contract periods are known, use
