@@ -19,6 +19,8 @@ dependencies = [
     "structlog>=24.4",
     "orjson>=3.10",
     "pyyaml>=6.0",
+    "imdlib>=0.1.22",
+    "requests>=2.34.2",
 ]
 
 [project.scripts]
@@ -32,6 +34,7 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "types-pyyaml>=6.0",
+    "types-requests>=2.33.0.20260906",
 ]
 
 [build-system]
@@ -51,12 +54,23 @@ extend-exclude = ["docs/"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.flake8-bugbear]
+# Typer's documented CLI-parameter idiom (typer.Argument(...)/typer.Option(...)
+# as a default) is intentional, not the mutable-default-argument bug B008
+# guards against.
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 packages = ["mq"]
 mypy_path = "src"
 exclude = ["^notebooks/", "^research/"]
+
+[[tool.mypy.overrides]]
+# No type stubs published for this package.
+module = "imdlib.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

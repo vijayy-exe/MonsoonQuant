@@ -1,0 +1,30 @@
+# DRAFT contract spec — RAINCHNNAI. NOT for real pricing.
+#
+# Every field marked TODO_VERIFY corresponds to an open question in
+# docs/VERIFY.md (V1-V12) and must be filled in from the official NCDEX
+# contract-specification document before this spec can be loaded without
+# --allow-draft. Do not invent values here — see SPEC §0.3 "stop and ask".
+
+contract_code: RAINCHNNAI
+spec_version: 2026-10-04
+
+stations: TODO_VERIFY  # V2 — which stations/grid cells, and how combined
+
+index:
+  kind: TODO_VERIFY            # V3 — cumulative rain mm vs % of LPA vs deviation mm
+  aggregation: TODO_VERIFY     # V2 — mean vs weighted_mean across stations
+  lpa: TODO_VERIFY             # V4 — LPA source + base period + table
+  period_start: TODO_VERIFY    # V3 — contract period start (month/day)
+  period_end: TODO_VERIFY      # V3 — contract period end (month/day)
+  missing_data_rule: TODO_VERIFY  # V10 — treatment of missing station data
+
+multiplier_inr_per_point: TODO_VERIFY  # V6
+tick_size: TODO_VERIFY                 # V6
+lot_size: TODO_VERIFY                  # V6
+max_order_lots: TODO_VERIFY            # V7
+position_limit_lots: TODO_VERIFY       # V7
+margin_pct: TODO_VERIFY                # V8
+
+settlement: TODO_VERIFY  # V9 — final settlement procedure and timing
+
+source_ids: []  # populate via `mq sources add` once the official spec PDF is registered
