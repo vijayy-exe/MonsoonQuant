@@ -5,6 +5,77 @@ measured numbers.
 
 ---
 
+## 2026-10-04 — M1.1–M1.4 — Specs, climate ingestion, ledger live
+
+- **M1.1** Source register (`mq.specs.sources`, `mq sources add`/`list`):
+  SHA-256 content-addressed storage, YAML sidecar + `sources`/`raw_files`
+  DB rows. 4 unit + 1 integration test.
+- **M1.2** `ContractSpec` model (`mq.specs.contract`) with a `TODO_VERIFY`
+  sentinel on every VERIFY-dependent field; loader (`mq.specs.loader`)
+  rejects drafts unless `--allow-draft`; `mq specs validate` CLI. DRAFT
+  YAMLs written for RAINCHNNAI and RAINMUMBAI
+  (`specs/contracts/{code}/2026-10-04-draft.yaml`). 4 unit tests.
+- **M1.3** Climate ingestion:
+  - Added `imdlib` dependency (~150MB incl. matplotlib/scipy/xarray) —
+    confirmed with you first per the project's own >50MB rule.
+  - `mq.pipelines.dq`: DQ01 (missing dates), DQ02 (duplicate keys), DQ03
+    (value range), DQ04 (schema drift), generic over any dataset; persists
+    to `dq_results`. 10 unit + 1 integration test.
+  - `mq.pipelines.imd`: IMD 0.25° rainfall, historical (`imdlib.get_data`)
+    and near-real-time (`imdlib.get_real_data`) paths, both DQ-gated
+    before Parquet write. **Measured, real data:** 2023 full year — 1.81M
+    land-cell-days, all 365 calendar days present, DQ gate passed.
+    2026-10-01→03 (NE monsoon onset, real-time product) — 14,892 rows, DQ
+    gate passed.
+  - `mq.pipelines.climate_idx`: ONI/DMI/MJO parsers. **Measured, real
+    data:** ONI 920 rows (1950-01 → 2026-08), DMI 1877 rows (1870-01 →
+    2026-05), both through the DQ gate and written to Parquet. MJO parser
+    implemented and unit-tested against a captured real-format fixture,
+    but live fetch is blocked — bom.gov.au returns an explicit
+    "automated access blocked" page for this network, on the data URL
+    *and* their own help page. Not worked around (would mean evading an
+    explicit anti-scraping control); logged as an open blocker.
+- **M1.4** Ledger goes live:
+  - `mq.ledger.hashing`: canonical JSON + `payload_sha256`/`row_hash`
+    two-hash scheme. 5 unit tests.
+  - `mq.ledger.writer`: idempotent per (contract, as_of, model_id,
+    model_version); correctly links `prev_hash` to the prior row's
+    `row_hash` (or genesis). `mq.ledger.verify`: recomputes the whole
+    chain. 3 integration tests, including a deliberately-forged row
+    (direct INSERT with a wrong `prev_hash`) that `verify_chain()`
+    correctly flags — proving the chain catches tampering that the
+    DB-level trigger (M0) doesn't cover (INSERT isn't blocked, only
+    UPDATE/DELETE).
+  - `mq.forecasting.climatology`: `clim_v1`, empirical climatology of
+    remaining-period rainfall from the nearest available grid cell. 3
+    unit tests.
+  - `mq.ledger.export`: writes `ledger/YYYY/MM/DD.jsonl`. 2 integration
+    tests.
+  - `mq ledger verify` / `mq ledger export` CLI commands.
+  - **Real ledger row written**: RAINCHNNAI, `clim_v1` v0.1.0, as_of
+    2026-10-04, target `remaining_rain_mm`, `data_version=imd-2023-only-n1`
+    (honestly labelled: n=1 climatology sample, proxy grid cell — see
+    docs/STATUS.md for why). `mq ledger verify` → "OK — 1 rows, chain
+    intact." Exported to `ledger/2026/10/04.jsonl`.
+  - RAINMUMBAI: no row written — its proxy season (Jun-Sep) is already
+    closed for 2026; writing a "remaining rain" forecast for a closed
+    season would be meaningless. Revisit per docs/STATUS.md.
+- **Measured:** `make check` green — 0 lint issues, `mypy --strict`
+  clean on 37 source files, **45/45 tests pass** (up from 7 after M0).
+
+**Gate status:** M1's stated gate ("ledger ≥ 1 verified daily row per
+live contract; `mq ledger verify` passes") is met for RAINCHNNAI, the one
+contract with an actually-open proxy season today. RAINMUMBAI and real
+VERIFY closure remain open — both documented in docs/STATUS.md as
+blocked on you (contract-spec PDFs; a backfill-scope decision; a MJO
+network/access decision).
+
+**Next task:** your call — supply the NCDEX PDFs, decide the IMD backfill
+scope, or move ahead to M2 (market data ingestion + DQ05-DQ10) on the
+current DRAFT specs.
+
+---
+
 ## 2026-10-04 — M0.1–M0.3 — Scaffold complete
 
 - Repo created at `~/Documents/MonsoonQuant`, layout per SPEC §5 (specs/,
