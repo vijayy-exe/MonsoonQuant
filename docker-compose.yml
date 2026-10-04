@@ -28,7 +28,9 @@ services:
       --backend-store-uri /mlruns
       --default-artifact-root /mlruns
     ports:
-      - "5000:5000"
+      # Host 5001 -> avoid clashing with macOS's AirPlay Receiver
+      # (ControlCenter), which owns port 5000 by default on this machine.
+      - "5001:5000"
     volumes:
       - mq_mlflow_data:/mlruns
 

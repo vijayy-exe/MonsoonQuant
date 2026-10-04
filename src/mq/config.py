@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     object_store_backend: str = "local"
     object_store_path: str = "./data/objects"
 
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_tracking_uri: str = "http://localhost:5001"
 
     cds_api_key: str = ""
     cds_api_url: str = "https://cds.climate.copernicus.eu/api"

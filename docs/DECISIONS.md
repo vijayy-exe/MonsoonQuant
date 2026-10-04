@@ -4,6 +4,26 @@ Format per entry: decision, alternatives considered, reason, date.
 
 ---
 
+## 2026-10-05 — MLflow runs on host port 5001, not 5000
+
+**Decision:** `docker-compose.yml` maps `5001:5000` for the `mlflow`
+service; `MQ_MLFLOW_TRACKING_URI` and `.env.example` point at port 5001.
+
+**Reason:** Same pattern as the Postgres 5433 decision (2026-10-04) — a
+pre-existing service already owns the default port. Here it's macOS's own
+AirPlay Receiver (ControlCenter), which binds port 5000 by default on
+this machine and returns a bare `403 Forbidden` to any HTTP request
+before it ever reaches Docker's port-forwarded container. Confirmed via
+`lsof -nP -iTCP:5000 -sTCP:LISTEN` showing `ControlCenter` as the
+listener, not Docker.
+
+**Evidence:** `curl http://localhost:5000` and the mlflow Python client
+both got 403 with no matching request in the mlflow container's own
+gunicorn logs — the request never reached the app. After remapping to
+5001, an actual mlflow run (`mlflow.start_run()`) succeeds.
+
+---
+
 ## 2026-10-04 — Resolved VERIFY V1-V11 by finding the official NCDEX PDFs directly
 
 **Decision:** Instead of waiting for the user to supply the NCDEX

@@ -36,6 +36,9 @@ src/mq/{specs,io,pipelines,index,pricing,mpr,forecasting,risk,ledger,api} · cor
   touch that service; don't move this project back to 5432 without checking.
 - Docker runtime is **colima** (`colima start`), not Docker Desktop (not
   installed). `docker compose` needs colima running first.
+- MLflow runs on **host port 5001**, not 5000 — macOS's AirPlay Receiver
+  (ControlCenter) owns 5000 by default and silently 403s anything sent
+  there before Docker even sees it.
 - macOS + uv quirk: `uv run` sets the editable-install `.pth` file's
   UF_HIDDEN flag, which CPython 3.12's site.py silently skips, breaking
   `import mq`. The Makefile exports `PYTHONPATH=$(CURDIR)/src` to sidestep it
