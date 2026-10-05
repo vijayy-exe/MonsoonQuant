@@ -25,6 +25,8 @@ dependencies = [
     "scoringrules>=0.11.0",
     "mq-core-sim",
     "lightgbm>=4.5",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.scripts]
@@ -41,6 +43,7 @@ dev = [
     "types-requests>=2.33.0.20260906",
     "scipy-stubs>=1.18.1.1",
     "pybind11>=2.13",
+    "httpx2>=2.13",
 ]
 
 [tool.uv.workspace]
@@ -76,7 +79,12 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 # Typer's documented CLI-parameter idiom (typer.Argument(...)/typer.Option(...)
 # as a default) is intentional, not the mutable-default-argument bug B008
 # guards against.
-extend-immutable-calls = ["typer.Argument", "typer.Option"]
+extend-immutable-calls = [
+    "typer.Argument",
+    "typer.Option",
+    "fastapi.Query",
+    "fastapi.Depends",
+]
 
 [tool.mypy]
 python_version = "3.12"
