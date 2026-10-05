@@ -32,10 +32,12 @@ cover designer is built and real-run (SPEC's own stated synthetic
 Chennai delivery-rider case study: basis-failure probability 25.8% →
 3.2%; also caught a real finding that an unconstrained trigger grid
 lets the optimizer find a degenerate near-always-pay cover — not a
-bug, a legitimate optimum of SPEC's literal objective). M2's NCDEX
+bug, a legitimate optimum of SPEC's literal objective). M11's scenario
+lab is built and real-run too (8 scenarios incl. a real 2015 historical
+analog; delta=1.0/gamma≈0 confirmed across every shock). M2's NCDEX
 bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
 around, documented as policy; it also blocks M6/M8's real calibration.
-M11's scenario lab (`mq.risk.scenarios`) is next.
+M0-M11 are all done; M12 (API hardening) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

@@ -24,7 +24,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 8 | Buffer | ⬜ not started | — | |
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ✅ M8 done (see M8 detail); M9 Greeks done (delta/gamma exact, theta meets SE<5% with enough paths — see M9 detail) | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
-| 11 | **M10** Basis · **M11** Parametric & Scenarios | 🟨 M10 done; M11 parametric cover designer done (real synthetic case study, see M11 detail); scenario lab not started | basis heatmap + 1 parametric case study | |
+| 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ⬜ not started | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
@@ -212,7 +212,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M11 detail (parametric cover designer — done; scenario lab — not started)
+## M11 detail (parametric cover designer and scenario lab — both done)
 
 | Item | Status |
 |---|---|
@@ -220,7 +220,9 @@ comments) — that's the main remaining honesty caveat.
 | `optimize_cover`: grid search + Nelder-Mead refine (SPEC's own stated method) over `(trigger, slope, limit)` to minimize basis-failure probability subject to a premium budget | ✅ hand-computed + closed-form tests pass |
 | **Real finding about the objective itself**: an unconstrained trigger grid let the optimizer find a degenerate "trigger almost every year" cover that trivially drives basis-failure probability to exactly 0 without being well-calibrated to real loss events | ✅ **caught on the first real run**, not hidden — a legitimate optimum of SPEC's literal stated objective, not a bug; fixed by restricting the trigger grid to above the index's own historical median (a designer's judgment call SPEC doesn't specify) |
 | **Real case study (SPEC's own stated one): synthetic Chennai delivery-rider exposure** | ✅ real local rainfall (M10's weakest-correlation cell) + real official index (M4), restricted trigger grid: basis-failure probability 25.8% (no cover) → 3.2% (optimized cover), premium 200.1 of a 50,000 illustrative budget, firing selectively in 15/31 years. Full write-up: `docs/methods/parametric.md` |
-| `mq.risk.scenarios` (scenario lab: El Niño/La Niña/neutral, IOD presets, "2015 Chennai floods analog", custom shocks → valuations under all methods + Greeks + hedge P&L) | ⬜ not started |
+| `mq.risk.scenarios`: El Niño/La Niña/neutral ENSO, +/- IOD, dry November, cloudburst, real 2015 historical analog, custom shock | ✅ pure orchestration over M5/M9 (no new pricing math); "2015 Chennai floods analog" uses the real 2015 ONI/DMI from the real ingested `climate_idx` data, not an illustrative placeholder |
+| **Real run, all 8 scenarios, RAINCHNNAI** | ✅ delta=1.0/gamma≈0 confirmed structurally across every single shock (same CDR-index additive-in-obs property M9 found, now under 8 different real covariate states); real 2015 analog (ONI=+2.28, mean=790.1mm) lands close to the synthetic `el_nino` preset (ONI=+2.0, mean=752.2mm) — an internal-consistency check between independently-derived strong-El-Niño inputs. Hedge P&L reported against an existing -5-lot position (M9's own real demo result) across every scenario. Full write-up: `docs/methods/scenarios.md` |
+| Valuations under burn/distribution (M4) and forecast-conditioned (M8) methods specifically, re-optimized hedge per scenario | ⬜ this module currently reports only the simulator's own mean/P5/P95, not SPEC's full "all methods"; noted honestly, not claimed |
 
 ---
 
@@ -277,7 +279,7 @@ comments) — that's the main remaining honesty caveat.
 | F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ✅ done — min-variance (SPEC's own h*=-Cov/Var sign convention) + CVaR95 LP via scipy's HiGHS (no cvxpy needed); real run finds position limits are load-bearing for CVaR specifically, since the real index is positive in every historical season (see M9 detail) |
 | F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
-| F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ⬜ |
+| F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
 | F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ⬜ |
 | F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
 | F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
@@ -353,18 +355,16 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M10 are done; M11's parametric cover designer is done too
-(`docs/methods/parametric.md` — real synthetic case study cuts
-basis-failure probability 25.8%→3.2%; also caught a real finding about
-the optimization objective itself, not hidden). Only M11's scenario lab
-(`mq.risk.scenarios`) and M12+ (API/dashboard/deploy/paper) remain —
-M6/M8's real-data application stays blocked on bhavcopy (see M6/M8
-detail); M7's `tft_v1` deliberately skipped (see M7 detail). Scenario
-lab is next: presets (El Niño/La Niña/neutral, IOD, "2015 Chennai
-floods analog", custom shocks) returning valuations under all methods +
-Greeks + hedge P&L — mostly orchestration of what M4-M11 already built,
-not new pricing machinery. Or address an open blocker above (bhavcopy/
-MJO bot-gates block the most — M2's real market data, M6/M8's real
+Next: M0-M11 are all done. Only M12+ (API hardening, dashboard, deploy,
+paper) remain of the whole 15-week plan — M6/M8's real-data application
+stays blocked on bhavcopy (see M6/M8 detail); M7's `tft_v1` deliberately
+skipped (see M7 detail). M11's scenario lab real run
+(`docs/methods/scenarios.md`) confirmed delta=1.0/gamma≈0 structurally
+across all 8 real scenarios, and the real 2015 historical analog landed
+close to the synthetic el_nino preset — a genuine internal-consistency
+check. M12 (`mq.api`, FastAPI + OpenAPI + typed TS client, contract
+tests) is next, or address an open blocker above (bhavcopy/MJO
+bot-gates block the most — M2's real market data, M6/M8's real
 calibration, and M11's own research outputs all wait on bhavcopy
 specifically). Worth considering alongside
 either: extending the IMD backfill back to 1951 for SPEC's literal

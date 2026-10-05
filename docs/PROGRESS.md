@@ -5,6 +5,54 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 11) — M11 scenario lab: 8 real scenarios, delta=1.0/gamma≈0 confirmed across every shock; M0-M11 all complete
+
+Continuation of the same day, after M11's parametric cover designer
+was closed out. Picked up M11's other half (scenario lab,
+`mq.risk.scenarios`) — deliberately pure orchestration, no new pricing
+math, over M5's simulator and M9's Greeks/hedge pipeline.
+
+- **`mq.risk.scenarios`**: 7 standard presets (El Niño, La Niña,
+  neutral ENSO, positive/negative IOD, dry November, +100mm
+  cloudburst) plus a historical-analog builder and a custom-shock
+  escape hatch. Each perturbs ONI/DMI covariates or `observed_to_date`
+  and re-runs the existing valuation/Greeks/hedge-P&L pipeline.
+- **Grounded each preset honestly rather than treating them as
+  uniformly illustrative**: "2015 Chennai floods analog" pulls the
+  *real* 2015 ONI/DMI from the real ingested `climate_idx` data (2015
+  was a genuine strong El Niño year in this project's own M7 backtest
+  record) — the one preset that's historically grounded, not
+  approximate. "Dry November" has no literal model dial (the chain
+  model's seasonality is Fourier-harmonic, not month-specific) — built
+  as an explicitly-labelled illustrative shock rather than silently
+  approximating something it structurally can't do exactly. The
+  cloudburst preset, by contrast, IS exact — a direct
+  `observed_to_date` bump, the identical mechanism M9's Greeks already
+  rely on for exact CRN pairing.
+- **Real run, all 8 scenarios (7 presets + the real 2015 analog)
+  against the real RAINCHNNAI model**: delta=1.0 and gamma≈0 held
+  *exactly* across every single one — the same structural
+  additive-in-`observed_to_date` property M9 found, now confirmed
+  under 8 different real covariate states rather than just the
+  baseline. **A genuine internal-consistency check**: the real 2015
+  analog (real ONI=+2.28, mean=790.1mm) landed close to the synthetic
+  `el_nino` preset (ONI=+2.0, mean=752.2mm) — two independently-derived
+  strong-El-Niño inputs producing similar outputs, as they should if
+  the model is behaving correctly. Hedge P&L reported against M9's own
+  real -5-lot position across every scenario. Script + log:
+  `.scratch/scenarios_demo.py` (gitignored). Full write-up:
+  `docs/methods/scenarios.md`.
+- Honestly scoped out: this module reports only the simulator's own
+  mean/P5/P95, not SPEC's full "valuations under all methods" (burn/
+  distribution/conditioned specifically); and hedge P&L is against an
+  existing fixed position, not a per-scenario re-optimized one.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M11 (both halves) and F18 now
+  done. **M0-M11 are now all complete** — only M12+ (API hardening,
+  dashboard, deploy, paper) remain of the full 15-week plan.
+  Resume-pointer moved to M12.
+
+---
+
 ## 2026-10-05 (cont. 10) — M11 parametric cover designer: real case study, caught a degenerate-objective finding on the first run
 
 Continuation of the same day, after M9 was closed out. Picked up M11's
