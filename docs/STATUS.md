@@ -18,8 +18,8 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 2 | **M3** Index engine | ✅ done | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested. `index_values` DB writer and `proxy_error` (ready, no official series to compare against yet) both built |
 | 3 | **M4** Burn & distribution pricing | ✅ done — both M4.1 (burn) and M4.2 (distribution selection) have **real persisted results** | 2 independent P-measure prices + methods note | Burn: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14 (n=31). Distribution: 7 candidates scored by leave-one-out CRPS, `kde_cv` selected (CRPS=213.01); fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm. Both written to `valuations` for all 3 active RAINCHNNAI series. Methods note: `docs/methods/burn_distribution.md` |
 | 4 | **M5** Simulator (build) | ✅ done — M5.1 (GLM fit), M5.2 (NumPy reference + overdispersion fix) and M5.3 (C++ core) all built and verified | C++ vs NumPy ref agree within 2 SE | **M5.3 real results**: Philox4x32-10 verified bit-for-bit against Random123's own known-answer test vectors; 1,000,000 paths × 92 days in **0.80s** (budget 10s); same seed → bit-identical SHA-256 digest across 1/2/4/8 OpenMP threads; statistical agreement with the NumPy reference within Monte Carlo noise. Still open: SPEC's literal 1951-2020 statistical holdout window needs a backfill extension (currently 1991-2020+2023) — a data task, not a code task |
-| 5 | **M5** Simulator (validate) · **M6** MPR (start) | 🟨 M5's 1M-paths<10s + seasonal-sd-±10% gates both met already (see M5 detail); M6 not started | 1M paths < 10s; seasonal sd ±10% | |
-| 6 | **M6** MPR (finish) · **M7** Forecasting (start) | ⬜ not started | λ series w/ CIs live; walk-forward runs | |
+| 5 | **M5** Simulator (validate) · **M6** MPR (start) | ✅ M5 gates met (see M5 detail); M6 built and verified (see M6 detail) | 1M paths < 10s; seasonal sd ±10% | |
+| 6 | **M6** MPR (finish) · **M7** Forecasting (start) | 🟨 M6's Wang/Esscher/calibration/uncertainty machinery done; real calibration blocked on bhavcopy (same as M2). M7 not started | λ series w/ CIs live; walk-forward runs | |
 | 7 | **M7** Forecasting (finish) | ⬜ not started | CRPSS vs climatology reported | |
 | 8 | Buffer | ⬜ not started | — | |
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ⬜ not started | 4-method comparison daily; Greek SE < 5% | |
@@ -144,6 +144,20 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M6 detail (market price of risk — machinery done, real calibration blocked)
+
+| Item | Status |
+|---|---|
+| `mq.mpr.wang`: Wang transform via order-statistic reweighting (no re-simulation) | ✅ sign convention (λ>0 raises price) verified by test, not assumed from one paper's convention |
+| `mq.mpr.esscher`: Esscher transform on the standardized payoff, with Kish's ESS + SPEC's "refuse below 1% of N" gate | ✅ `LowEffectiveSampleSizeError` raised rather than silently reporting a degenerate self-normalized estimate |
+| `mq.mpr.calibrate`: Brent-solved λ/θ to match a settle price, bounded [-3,3] | ✅ round-trip tests recover a known generating λ/θ exactly; unreachable settle reports the nearer corner (`converged=False`) instead of crashing |
+| `mq.mpr.uncertainty`: (a) bootstrap over resampled years, (b) closed-form delta-method MC error, (c) Bayesian pooling across dates (weak N(0,1) prior, liquidity-weighted) | ✅ all three built, tested independently of real market data |
+| Illustrative end-to-end run against the real M4 burn sample + real kde_cv distribution | ✅ settle=P-mean recovers λ=θ=0 exactly; settle above/below the mean recovers the predicted sign. Full uncertainty pipeline run at an illustrative settle=1000mm: bootstrap band [-0.042, 0.831] (wide — n=31 is thin), 3-date illustrative Bayesian pool [0.027, 0.485]. See `docs/methods/mpr.md` |
+| **Real calibration against actual NCDEX settlement prices/volumes** | ⬜ **blocked, not a code gap** — bhavcopy fetch is bot-gated, same root cause as M2. Nothing to calibrate against yet |
+| Research outputs (λ vs. days-to-expiry, λ vs. volume, Wang-vs-Esscher consistency) | ⬜ needs multiple real calibrated dates — same blocker |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -190,7 +204,7 @@ comments) — that's the main remaining honesty caveat.
 | F08 | Historical burn analysis (with detrending options) | P0 | M4 | 🟨 real 31-season reconstruction done and persisted; detrending options not started |
 | F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ✅ done — 7 candidates, leave-one-out CRPS selection, `kde_cv` wins, written to `valuations` + MLflow |
 | F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
-| F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | ⬜ |
+| F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | 🟨 machinery done + tested + demoed on real M4 data with an illustrative settle; real NCDEX calibration blocked (bhavcopy bot-gate) |
 | F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | 🟨 clim_v1 (rung 1) done |
 | F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ⬜ |
 | F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ⬜ |
@@ -275,9 +289,15 @@ tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
 Next: M5 is complete (M5.1 GLM fit, M5.2 NumPy reference + overdispersion
 fix, M5.3 C++ core — 1M paths in 0.80s, deterministic across thread
-counts, parity-tested against the NumPy reference, all with real
-measured numbers in this file and docs/PROGRESS.md). M6 (market price of
-risk — Wang/Esscher transforms, `mq.mpr`) is next. Worth considering
-alongside it: extending the IMD backfill back to 1951 for SPEC's literal
+counts, parity-tested against the NumPy reference). M6's Wang/Esscher/
+calibration/uncertainty machinery is built, tested, and demoed
+end-to-end against real M4 data (illustrative settle only — see
+docs/methods/mpr.md); real calibration against actual NCDEX settlements
+stays blocked on the same bhavcopy bot-gate as M2. M7 (forecasting
+ladder, `mq.forecasting`) is next, or address an open blocker above
+(the bhavcopy/MJO bot-gates are the two that would unblock the most —
+M2's real market data, M6's real calibration, and M11's research
+outputs all wait on bhavcopy specifically). Worth considering alongside
+either: extending the IMD backfill back to 1951 for SPEC's literal
 statistical-holdout window (currently only 1991-2020+2023) — a data
-task, not a code task. Or address an open blocker above.
+task, not a code task.

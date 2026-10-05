@@ -9,9 +9,11 @@ both contract specs fully resolved. Real CDR index, burn analysis,
 distribution selection, and a C++ chain-dependent simulator (pybind11 +
 OpenMP + Philox4x32-10, 1M paths in 0.8s, deterministic across thread
 counts, verified against the NumPy reference) are all built, tested, and
-run against real IMD data. M2's NCDEX bhavcopy live fetch stays bot-gated
-(same as MJO/BoM) — not worked around, documented as policy. M6 (market
-price of risk — Wang/Esscher transforms) is next.
+run against real IMD data. M6's Wang/Esscher MPR machinery is built,
+tested, and demoed against real M4 data (illustrative settle only — no
+real settlement data exists yet). M2's NCDEX bhavcopy live fetch stays
+bot-gated (same as MJO/BoM) — not worked around, documented as policy;
+it also blocks M6's real calibration. M7 (forecasting ladder) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

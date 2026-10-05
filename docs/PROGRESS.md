@@ -5,6 +5,60 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 3) — M6 market price of risk: Wang + Esscher, calibration, uncertainty
+
+Continuation of the same day, after M5 was closed out. User said
+"proceed"; picked up SPEC's M6 (market price of risk, `mq.mpr`).
+
+- **`mq.mpr.wang`**: Wang transform implemented by reweighting an
+  existing P-measure sample's order statistics (no re-simulation, per
+  SPEC) — plotting positions `i/(n+1)` rather than `i/n` to avoid the
+  `Phi^-1(0)`/`Phi^-1(1)` singularities at the sample extremes. The
+  sign convention (lambda>0 raises the price above the P-mean) was
+  *verified by test*, not assumed from a single paper's stated
+  direction — Wang-transform literature states it both ways depending
+  on whether a source applies it to the CDF or survival function, and
+  this derivation + test confirms SPEC's own CDF-based formula gives
+  lambda>0 -> higher price.
+- **`mq.mpr.esscher`**: tilts on the *standardized* payoff, not raw mm
+  values — raw CDR payoffs run ~300-2000mm, and `exp(theta*x)` for any
+  theta near 1 overflows a double instantly at that scale. Standardizing
+  first is a reparameterization (not a different transform), and it
+  puts theta on the same O(1) scale as Wang's lambda, so SPEC's single
+  "bounded in [-3,3]" calibration bound applies to both without
+  per-contract rescaling. SPEC's own "refuse below 1% ESS" gate raises
+  `LowEffectiveSampleSizeError` rather than silently returning an
+  unreliable self-normalized estimate.
+- **`mq.mpr.calibrate`**: Brent-solves lambda/theta to match a settle
+  price. Round-trip tests confirm both solvers recover a *known*
+  generating lambda/theta exactly (construct settle from that same
+  parameter, then calibrate and check it comes back out) — the same
+  discipline used for the M5.1 GLM coefficient-recovery tests.
+- **`mq.mpr.uncertainty`**: three distinct sources, per SPEC, kept
+  separate rather than collapsed into one number: (a) bootstrap over
+  resampled years (generic over "resampled years are the payoff sample"
+  vs. "resample, refit, redraw"), (b) closed-form delta-method MC
+  error, (c) Bayesian pooling across dates via conjugate normal-normal
+  update with a weak N(0,1) prior and liquidity (volume) weighting —
+  SPEC's headline number. All three built and tested without needing
+  any real market data.
+- **Illustrative end-to-end run against real M4 data** (real n=31 burn
+  sample, real kde_cv-selected distribution) — settle price chosen
+  illustratively since there is no real NCDEX settlement data yet
+  (bhavcopy bot-gate, same as M2). Confirms the math from both ends:
+  settle = the P-mean recovers lambda=theta=0 exactly; settle above/
+  below the mean recovers the predicted sign. Full uncertainty pipeline
+  at an illustrative settle=1000mm: bootstrap 90% band
+  [-0.042, 0.831] (wide — n=31 is genuinely thin for this), illustrative
+  3-date Bayesian pool [0.027, 0.485]. Script: `.scratch/mpr_demo.py`
+  (gitignored, not a committed test, same pattern as other real-data
+  demo scripts). Full write-up: `docs/methods/mpr.md`.
+- `docs/STATUS.md` and `CLAUDE.md` updated: M6 row now in-progress
+  (machinery done, real calibration blocked), F11 updated, new M6
+  detail table, resume-pointer moved to M7 (forecasting ladder).
+
+---
+
 ## 2026-10-05 (cont. 2) — M5.3 C++ core: pybind11 + OpenMP + Philox4x32-10; M5 complete
 
 Continuation of the same day. User chose "build the C++ core now" when
