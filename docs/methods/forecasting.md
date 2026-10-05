@@ -42,7 +42,8 @@ in a few seconds.
 | `clim_v1` | Empirical climatology, single station | Ledger-live since M1 |
 | `enso_clim_v1` | Climatology conditioned on ONI tercile | Built, backtested |
 | `analog_v1` | k-nearest past seasons (k=5) on (anomaly, ONI, DMI) | Built, backtested |
-| `lgbm_q_v1` / `lgbm_q_cqr_v1` | LightGBM quantile regression + conformal calibration | Not started — needs a new dependency decision |
+| `lgbm_q_v1` | LightGBM quantile regression + monotone rearrangement | Built, backtested |
+| `lgbm_q_cqr_v1` | + split-conformal calibration | Built, backtested |
 | `tft_v1` (P2) | Temporal Fusion Transformer | Not attempted — see §4 |
 
 `enso_clim_v1` reuses `mq.pricing.distribution.oni_terciles` (the same
@@ -51,6 +52,19 @@ within-sample tercile classification M4 built for burn-sample pricing).
 years' same-issue-day rows and takes the k=5 nearest by Euclidean
 distance — no new dependency; k-NN over 3 features and a few thousand
 rows doesn't need scikit-learn.
+
+`lgbm_q_v1` fits one LightGBM model per quantile level on
+(anomaly, ONI, DMI, days_remaining), using LightGBM's native
+`Dataset`/`Booster` API rather than the `LGBMRegressor` sklearn
+wrapper — the wrapper hard-requires scikit-learn at import time, an
+unplanned and much larger dependency the size check before adding
+lightgbm never covered. `lgbm_q_cqr_v1` adds split-conformal
+calibration on top: hold out a whole-season calibration fold, compute
+each quantile model's signed residual on it, and shift every future
+prediction at that quantile level by the residuals' own empirical
+quantile (the quantile-regression analogue of Romano, Patterson &
+Candès 2019's CQR, applied to every level in the grid rather than only
+one interval's two endpoints).
 
 ## 3. Walk-forward backtest — real results, reported honestly
 
@@ -65,39 +79,47 @@ row, and calls the model on that. Real run, RAINCHNNAI, all 31 seasons,
 | climatology baseline | 156.44 | — | 0.496 | 0.844 |
 | `enso_clim_v1` | 165.44 | **-0.058** | 0.422 | 0.747 |
 | `analog_v1` | 182.27 | **-0.165** | 0.319 | 0.609 |
+| `lgbm_q_v1` | 194.03 | **-0.240** | 0.331 | 0.686 |
+| `lgbm_q_cqr_v1` | 201.92 | **-0.291** | 0.455 | 0.863 |
 
-**Both newer rungs underperform plain climatology at this sample size**
-— SPEC's acceptance bullet is explicit that CRPSS gets reported
-"whatever the sign," and this is the honest sign. This is not treated
-as a bug to chase away by retuning `k` or the tercile cutoff against
-this same backtest — doing that would just be overfitting the
-hyperparameter to the one dataset being used to judge it, the opposite
-of what walk-forward validation is for. It mirrors M4's own finding
-that ENSO-conditioned climatology underperformed `kde_cv` for
-burn/distribution pricing (CRPS 231.0 vs 213.01) — the same
-sample-size-driven conclusion recurring at the forecasting-ladder level:
-with only ~29-30 analog years available per issue-day, conditioning on
-ONI tercile or taking a k=5 neighborhood both shrink the effective
-sample further, and the resulting loss of averaging outweighs whatever
-genuine ENSO/analog signal exists at n≈30 seasons.
+**Every newer rung underperforms plain climatology on CRPS at this
+sample size** — SPEC's acceptance bullet is explicit that CRPSS gets
+reported "whatever the sign," and this is the honest sign across all
+four. This is not treated as a bug to chase away by retuning `k`, the
+tercile cutoff, or LightGBM's hyperparameters against this same
+backtest — doing that would just be overfitting the hyperparameter to
+the one dataset being used to judge it, the opposite of what
+walk-forward validation is for. It mirrors M4's own finding that
+ENSO-conditioned climatology underperformed `kde_cv` for burn/distribution
+pricing (CRPS 231.0 vs 213.01) — the same sample-size-driven conclusion
+recurring at the forecasting-ladder level: with only ~29-30 analog
+years available per issue-day, every one of these methods effectively
+shrinks the usable sample further (by conditioning, by neighborhood, or
+by the proper-train/calibration split LightGBM needs), and the
+resulting loss of averaging outweighs whatever genuine signal exists at
+n≈30 seasons.
 
-`analog_v1`'s coverage is also notably too narrow (31.9% actual vs. 50%
-nominal; 60.9% vs. 90% nominal) — a known general property of small-k
-k-NN: the k nearest neighbors' own spread tends to underestimate the
-true conditional uncertainty, especially when some of the k points
-cluster close together. Not something this pass tries to patch with an
-ad hoc variance inflation that wasn't independently validated — flagged
-honestly instead.
+**But the conformal calibration layer does exactly what it was built to
+do.** `analog_v1` and `lgbm_q_v1` both under-cover badly (31.9%/60.9%
+and 33.1%/68.6% actual vs. 50%/90% nominal) — a known property of
+small-sample empirical forecasters: their own finite sample's spread
+underestimates the true conditional uncertainty. `lgbm_q_cqr_v1`'s
+coverage (45.5%/86.3%) comes in much closer to nominal than the
+uncalibrated `lgbm_q_v1` it's built on — the split-conformal correction
+measurably fixes the miscalibration it targets, even though it doesn't
+rescue CRPS (CRPS is about overall sharpness-and-correctness jointly;
+widening intervals to fix coverage can cost CRPS when the center is
+already off). Reported as two separate, both-true findings: the
+calibration mechanism works; it still isn't enough data to beat
+climatology outright.
 
 Script + full output: `.scratch/forecasting_backtest.py` /
-`.scratch/forecasting_backtest.log` (gitignored, real-data-dependent,
-same pattern as the other real-data demo scripts this project has used).
+`.scratch/forecasting_backtest.log` and `.scratch/lgbm_backtest.py` /
+`.scratch/lgbm_backtest.log` (gitignored, real-data-dependent, same
+pattern as the other real-data demo scripts this project has used).
 
 ## 4. What's not done yet
 
-- **`lgbm_q_v1` / `lgbm_q_cqr_v1`**: need LightGBM, a new dependency —
-  size/decision not yet checked against CLAUDE.md's ">50MB deps"
-  threshold.
 - **`tft_v1` (P2)**: not attempted. SPEC itself flags this as a weak
   candidate at "≈120 seasons" and asks for documented reasoning if
   skipped — this project's real sample is n=31, well below even that

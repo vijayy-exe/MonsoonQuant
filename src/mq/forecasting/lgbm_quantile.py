@@ -102,10 +102,10 @@ def lgbm_forecast_samples(
     n_samples: int = 1000,
 ) -> np.ndarray:
     quantiles = predict_quantiles(model, features)
-    return _samples_from_quantile_grid(quantiles, rng=rng, n_samples=n_samples)
+    return samples_from_quantile_grid(quantiles, rng=rng, n_samples=n_samples)
 
 
-def _samples_from_quantile_grid(
+def samples_from_quantile_grid(
     quantiles: dict[float, float], *, rng: np.random.Generator, n_samples: int
 ) -> np.ndarray:
     """Inverse-CDF sampling on the quantile grid, linearly extrapolated

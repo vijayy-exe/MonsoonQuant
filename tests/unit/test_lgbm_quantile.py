@@ -7,10 +7,10 @@ import pytest
 from mq.forecasting.lgbm_quantile import (
     FEATURE_COLS,
     LgbmQuantileModel,
-    _samples_from_quantile_grid,
     fit_lgbm_quantile_model,
     lgbm_forecast_samples,
     predict_quantiles,
+    samples_from_quantile_grid,
 )
 
 
@@ -39,7 +39,7 @@ class _FakeLgbModel:
 def test_samples_from_quantile_grid_exact_interpolation() -> None:
     quantiles = {0.05: 10.0, 0.25: 20.0, 0.5: 30.0, 0.75: 40.0, 0.95: 50.0}
     rng = _FixedUniformRng([0.0, 0.15, 0.5, 1.0])
-    samples = _samples_from_quantile_grid(quantiles, rng=rng, n_samples=4)  # type: ignore[arg-type]
+    samples = samples_from_quantile_grid(quantiles, rng=rng, n_samples=4)  # type: ignore[arg-type]
     # lo_ext = 10 - 50*0.05 = 7.5; hi_ext = 50 + 50*0.05 = 52.5
     # u=0.15 is 0.5 of the way from 0.05 to 0.25 -> 10 + 0.5*(20-10) = 15.0
     np.testing.assert_allclose(samples, [7.5, 15.0, 30.0, 52.5])
@@ -105,7 +105,7 @@ def test_fit_and_predict_recovers_a_known_linear_signal() -> None:
 def test_samples_cover_a_reasonable_range_around_the_median() -> None:
     quantiles = {0.05: 100.0, 0.25: 150.0, 0.5: 200.0, 0.75: 250.0, 0.95: 300.0}
     rng = np.random.default_rng(1)
-    samples = _samples_from_quantile_grid(quantiles, rng=rng, n_samples=10_000)
+    samples = samples_from_quantile_grid(quantiles, rng=rng, n_samples=10_000)
     assert np.median(samples) == pytest.approx(200.0, abs=5.0)
     assert samples.min() > 0.0
     assert samples.max() < 400.0
