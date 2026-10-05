@@ -5,6 +5,68 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 2) — M5.3 C++ core: pybind11 + OpenMP + Philox4x32-10; M5 complete
+
+Continuation of the same day. User chose "build the C++ core now" when
+asked how to proceed after M5.1/M5.2.
+
+- **New `core/` package**: its own uv workspace member, scikit-build-core
+  + pybind11 build backend — kept separate from the main hatchling-built
+  `mq` package so installing `mq` for analysis-only use never requires a
+  C++ compiler. `uv sync` builds and installs it automatically, same as
+  any other dependency.
+- **Philox4x32-10 implemented from scratch** (the published Salmon,
+  Moraes, Dror, Shaw 2011 constants and round structure) rather than
+  vendoring the full upstream Random123 header library — fetched the
+  canonical `philox.h` from DEShawResearch/random123 via `gh api` purely
+  to *verify* constants/structure, not to vendor it. **Verified
+  bit-for-bit** against three of Random123's own published known-answer
+  test vectors (all-zero, all-ones, and an asymmetric key/counter case)
+  before trusting the header for anything else — exact match on all
+  three.
+- **OpenMP on Apple Clang needed an explicit fix**: `find_package(OpenMP)`
+  silently fails on macOS because Apple Clang ships no OpenMP runtime of
+  its own — a known CMake/macOS gotcha, not specific to this project.
+  Fixed by pointing CMake at Homebrew's already-installed `libomp`
+  explicitly in `core/CMakeLists.txt`. Caught by checking
+  `core.OPENMP_ENABLED` after the first build (it was `False`) rather
+  than assuming the flag had taken.
+- **Marsaglia-Tsang Gamma sampling via Philox**, including the shape<1
+  boost trick (`Gamma(a) = Gamma(a+1) * U^(1/a)`) — exercised with the
+  real fitted shape (0.316, M5.1), not just a toy value. Every RNG draw
+  (occurrence Bernoulli, Gamma rejection-loop retries, the season-level
+  overdispersion multiplier) is a pure function of (key, path_id, day,
+  stream_id, attempt) with zero shared mutable state.
+- **Measured results**:
+  - 1,000,000 paths × 92 days: **0.80s** (SPEC's budget is 10s — 12x
+    margin). Logged to `docs/benchmarks/simulator_1m_paths.txt`.
+  - Same seed → **bit-identical SHA-256 digest** across OMP_NUM_THREADS
+    = 1, 2, 4, 8 (verified via subprocess, since OpenMP reads the env var
+    once at its first parallel region).
+  - C++ core vs. the M5.2 NumPy reference: statistical agreement within
+    Monte Carlo noise on two synthetic degenerate models (including the
+    shape<1 case) — different RNGs, same model, same distributional
+    moments.
+- **Refactor**: factored the per-day GLM-prediction + LPA-lookup step
+  (duplicated the moment a second simulator backend existed) into
+  `mq.pricing.simulator_features.build_daily_arrays`, and moved
+  `DailyLPA`'s dict-building into `mq.index.lpa.daily_lpa_lookup` — both
+  backends now share one implementation, can't silently drift apart.
+- `mq.pricing.simulator` (production, C++-backed) added alongside the
+  existing `mq.pricing.simulator_ref` (NumPy reference, kept per SPEC's
+  own requirement for an independent cross-check).
+- New `tests/statistical/`: parity, cross-thread determinism, and the
+  `make bench` benchmark — all pass, all real measurements, none
+  fabricated.
+- `CLAUDE.md`'s "Current milestone" section was badly stale (still said
+  M3 was next, from several sessions ago) — updated to reflect M0-M5
+  complete, M6 next.
+- **M5 is now fully complete** (M5.1, M5.2, M5.3). `docs/STATUS.md`
+  updated throughout; "how to resume" now points at M6 (market price of
+  risk).
+
+---
+
 ## 2026-10-05 (cont.) — M5.1 GLM fitting + M5.2 NumPy reference simulator, overdispersion fix validated on real data
 
 Continuation of the same day, after M4 was closed out. Picked up SPEC's

@@ -17,8 +17,8 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 2 | **M2** Market data & DQ | 🟨 pipeline built, no real data yet | DQ gate blocks on bad data | NCDEX bhavcopy parser/normaliser + DQ05-DQ10 built and tested against the real documented schema; live fetch blocked (bot-gated), needs a manually-downloaded CSV |
 | 2 | **M3** Index engine | ✅ done | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested. `index_values` DB writer and `proxy_error` (ready, no official series to compare against yet) both built |
 | 3 | **M4** Burn & distribution pricing | ✅ done — both M4.1 (burn) and M4.2 (distribution selection) have **real persisted results** | 2 independent P-measure prices + methods note | Burn: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14 (n=31). Distribution: 7 candidates scored by leave-one-out CRPS, `kde_cv` selected (CRPS=213.01); fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm. Both written to `valuations` for all 3 active RAINCHNNAI series. Methods note: `docs/methods/burn_distribution.md` |
-| 4 | **M5** Simulator (build) | 🟨 M5.1+M5.2 done (real GLM fit + validated NumPy reference simulator); M5.3 (C++ core) not started | C++ vs NumPy ref agree within 2 SE | CMake, Apple clang (C++20), and libomp are all already present on this machine — no new system installs needed for M5.3. Needs a Philox RNG implementation + pybind11/scikit-build-core wiring + 1951-2020 holdout backfill (currently only have 1991-2020+2023) |
-| 5 | **M5** Simulator (validate) · **M6** MPR (start) | ⬜ not started | 1M paths < 10s; seasonal sd ±10% | |
+| 4 | **M5** Simulator (build) | ✅ done — M5.1 (GLM fit), M5.2 (NumPy reference + overdispersion fix) and M5.3 (C++ core) all built and verified | C++ vs NumPy ref agree within 2 SE | **M5.3 real results**: Philox4x32-10 verified bit-for-bit against Random123's own known-answer test vectors; 1,000,000 paths × 92 days in **0.80s** (budget 10s); same seed → bit-identical SHA-256 digest across 1/2/4/8 OpenMP threads; statistical agreement with the NumPy reference within Monte Carlo noise. Still open: SPEC's literal 1951-2020 statistical holdout window needs a backfill extension (currently 1991-2020+2023) — a data task, not a code task |
+| 5 | **M5** Simulator (validate) · **M6** MPR (start) | 🟨 M5's 1M-paths<10s + seasonal-sd-±10% gates both met already (see M5 detail); M6 not started | 1M paths < 10s; seasonal sd ±10% | |
 | 6 | **M6** MPR (finish) · **M7** Forecasting (start) | ⬜ not started | λ series w/ CIs live; walk-forward runs | |
 | 7 | **M7** Forecasting (finish) | ⬜ not started | CRPSS vs climatology reported | |
 | 8 | Buffer | ⬜ not started | — | |
@@ -127,7 +127,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M5 detail (simulator — M5.1/M5.2 done, M5.3 C++ core not started)
+## M5 detail (simulator — M5.1, M5.2, and M5.3 all done)
 
 | Item | Status |
 |---|---|
@@ -135,9 +135,12 @@ comments) — that's the main remaining honesty caveat.
 | Real fit, nungambakkam station, n=11,323 days (1991-2020+2023) | ✅ both occurrence GLMs + amount GLM converge; amount shape=0.316 (strongly right-skewed, as rainfall is) |
 | `mq.pricing.simulator_ref` (M5.2): NumPy reference chain-dependent simulator | ✅ day-by-day Markov occurrence + Gamma amount, accumulates (rain-LPA) deviation exactly like `compute_index` |
 | Overdispersion fix (season-level lognormal multiplier on the amount-mean, calibrated via 1-D Brent root-find) | ✅ **real validation**: no-fix simulated seasonal-total sd=272.5mm vs. real historical sd=412.3mm (confirms SPEC's under-dispersion problem on real data); after calibration (sigma=0.336), simulated sd=418.5mm — within SPEC's ±10% acceptance band. Script + log: `.scratch/validate_simulator.py` (gitignored — depends on real backfilled data, not committed as a test, same pattern as the backfill scripts) |
-| **M5.3 C++ core (not started)**: CMake + pybind11 + scikit-build-core + OpenMP + Philox4x32-10 | ⬜ toolchain already present (cmake, Apple clang C++20, libomp all pre-installed — confirmed, no brew install needed); not yet wired. Will implement Philox4x32-10 directly (the published Salmon et al. 2011 constants) rather than vendor the full upstream Random123 header tree — simpler, no new external dependency to fetch |
+| **M5.3 C++ core**: CMake + pybind11 + scikit-build-core + OpenMP + Philox4x32-10 | ✅ done. New `core/` package, its own uv workspace member (scikit-build-core + pybind11) so the main hatchling-built `mq` package never needs a C++ compiler. Philox4x32-10 implemented from the published Salmon et al. 2011 constants (not vendored from upstream Random123) — verified bit-for-bit against Random123's own known-answer test vectors before being trusted for anything else |
+| OpenMP on Apple Clang | ✅ Apple Clang ships no OpenMP runtime; `find_package(OpenMP)` needed explicit Homebrew-libomp hints (a known macOS/CMake gotcha) — documented in `core/CMakeLists.txt`, not re-debugged next time |
+| `mq.pricing.simulator` (production, C++-backed) vs. `mq.pricing.simulator_ref` (NumPy reference) | ✅ both share one feature-building step (`mq.pricing.simulator_features`) so they can't silently drift; verified to agree statistically (`tests/statistical/test_simulator_parity.py`), including the real shape<1 Gamma boost-trick branch |
+| Determinism: same seed → same output regardless of OpenMP thread count | ✅ **measured, not assumed**: bit-identical SHA-256 digest across 1/2/4/8 threads (`tests/statistical/test_simulator_determinism.py`) — true by construction (every RNG draw is a pure function of (key, path_id, day, stream, attempt), no shared mutable stream state), and confirmed empirically |
+| `make bench` (1M paths × 92 days < 10s) | ✅ **0.80s measured** (12x under budget) — `docs/benchmarks/simulator_1m_paths.txt`, regenerated by `tests/statistical/test_simulator_bench.py` |
 | Statistical holdout validation vs. SPEC's literal "1951-2020" window | ⬜ **blocked on data, not code** — current backfill is 1991-2020+2023 only; extending back to 1951 needs another IMD backfill run (same pattern as the existing one, just more years) |
-| `make bench` (1M paths × 92 days < 10s) | ⬜ needs the C++ core to exist first |
 
 ---
 
@@ -270,11 +273,11 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M4 is complete; M5.1 (GLM fitting) and M5.2 (NumPy reference
-simulator, overdispersion fix validated on real data) are complete.
-M5.3 (C++ core) is next: toolchain is already present (cmake, clang
-C++20, libomp), needs pybind11/scikit-build-core wiring + a Philox4x32-10
-implementation + parity tests vs. the now-working NumPy reference. Also
-consider extending the IMD backfill back to 1951 for SPEC's literal
-holdout validation window (currently only 1991-2020+2023). Or address
-an open blocker above.
+Next: M5 is complete (M5.1 GLM fit, M5.2 NumPy reference + overdispersion
+fix, M5.3 C++ core — 1M paths in 0.80s, deterministic across thread
+counts, parity-tested against the NumPy reference, all with real
+measured numbers in this file and docs/PROGRESS.md). M6 (market price of
+risk — Wang/Esscher transforms, `mq.mpr`) is next. Worth considering
+alongside it: extending the IMD backfill back to 1951 for SPEC's literal
+statistical-holdout window (currently only 1991-2020+2023) — a data
+task, not a code task. Or address an open blocker above.

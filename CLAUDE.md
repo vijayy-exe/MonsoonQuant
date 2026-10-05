@@ -4,11 +4,14 @@ Spec: docs/SPEC.md (this master file — copied from the original build spec).
 Read §0 and the current milestone before coding. Status/tracker: docs/STATUS.md.
 
 ## Current milestone
-M0 and M1 are done. VERIFY V1-V11 are closed from the real official NCDEX
-documents (found directly, not supplied) — both contract specs are fully
-resolved, no longer drafts. M2 (market-data pipeline) is built and tested
-but has no real data yet (NCDEX's bhavcopy API is bot-gated). M3 (index
-engine) is next and unblocked — the real CDR methodology is known.
+M0-M5 are done. VERIFY V1-V11 closed from real official NCDEX documents;
+both contract specs fully resolved. Real CDR index, burn analysis,
+distribution selection, and a C++ chain-dependent simulator (pybind11 +
+OpenMP + Philox4x32-10, 1M paths in 0.8s, deterministic across thread
+counts, verified against the NumPy reference) are all built, tested, and
+run against real IMD data. M2's NCDEX bhavcopy live fetch stays bot-gated
+(same as MJO/BoM) — not worked around, documented as policy. M6 (market
+price of risk — Wang/Esscher transforms) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
