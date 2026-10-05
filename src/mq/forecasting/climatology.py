@@ -1,13 +1,24 @@
-"""clim_v1 — empirical climatology of remaining-period rainfall (SPEC §7.6).
+"""clim_v1 and enso_clim_v1 — the first two rungs of the forecasting
+ladder (SPEC §7.6).
 
-The first rung of the forecasting ladder: for an issue date `as_of`, take
-every historical year's actual rainfall over the same (month, day) window
-— from `as_of`'s month/day through the period's end month/day — at the
-nearest available grid cell to a reference point, and report its sample
-quantiles. No model fitting, no covariates: this is what SPEC §2 calls the
+`clim_v1`: for an issue date `as_of`, take every historical year's
+actual rainfall over the same (month, day) window — from `as_of`'s
+month/day through the period's end month/day — at the nearest available
+grid cell to a reference point, and report its sample quantiles. No
+model fitting, no covariates: this is what SPEC §2 calls the
 "climatology-only forecaster" that must go live in Week 1, before any
 better model exists, so the ledger has a timestamped prediction on record
 before the season resolves.
+
+`enso_clim_v1`: the same empirical-quantile idea, but conditioned on
+ONI tercile — "years with the same ONI tercile as this one" rather than
+every year equally. Built on `mq.forecasting.features.build_training_rows`'s
+training table (2-station averaged series) rather than clim_v1's
+single-station lookup, and reuses `mq.pricing.distribution.oni_terciles`
+— the same within-sample tercile classification M4's
+`fit_enso_conditioned_climatology` already uses for burn-sample pricing,
+applied here to remaining-period rainfall at a specific issue date
+instead of a season's final payoff.
 """
 
 from __future__ import annotations
@@ -15,12 +26,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+import numpy as np
 import polars as pl
 
 from mq.io.grid import nearest_cell
+from mq.pricing.distribution import oni_terciles
 
 MODEL_ID = "clim_v1"
 MODEL_VERSION = "0.1.0"
+
+ENSO_MODEL_ID = "enso_clim_v1"
+ENSO_MODEL_VERSION = "0.1.0"
 
 QUANTILE_LEVELS = [0.05, 0.25, 0.5, 0.75, 0.95]
 
@@ -90,4 +106,81 @@ def remaining_rain_climatology(
         n_years=len(samples),
         quantiles=quantiles,
         sample_values=samples,
+    )
+
+
+@dataclass(frozen=True)
+class EnsoClimatologyForecast:
+    target_year: int
+    issue_date: date
+    target_oni: float
+    target_tercile: int
+    n_in_group: int
+    used_fallback: bool
+    quantiles: dict[str, float]
+    sample_values: list[float]
+
+
+def _quantiles_from_samples(samples: np.ndarray) -> dict[str, float]:
+    series = pl.Series(samples)
+    quantiles: dict[str, float] = {}
+    for q in QUANTILE_LEVELS:
+        value = series.quantile(q, interpolation="linear")
+        assert value is not None
+        quantiles[str(q)] = float(value)
+    return quantiles
+
+
+def enso_conditioned_remaining_rain_forecast(
+    training_rows: pl.DataFrame,
+    *,
+    target_year: int,
+    issue_date: date,
+    min_group_size: int = 5,
+) -> EnsoClimatologyForecast:
+    """Empirical quantiles of `target_remaining_rain_mm` from years
+    sharing `target_year`'s ONI tercile, at the SAME calendar issue-day
+    across years (`training_rows` from
+    `mq.forecasting.features.build_training_rows`). `target_year`'s own
+    row is excluded from the sample pool — this forecasts year
+    `target_year` using *other* years' analogs, the structure a
+    walk-forward backtest needs to stay honest. Falls back to the full
+    cross-year sample (still excluding `target_year`) if the matching
+    tercile group is smaller than `min_group_size` — same posture as
+    M4's `fit_enso_conditioned_climatology`."""
+    same_day = training_rows.filter(
+        (pl.col("issue_month") == issue_date.month) & (pl.col("issue_day") == issue_date.day)
+    )
+    target_row = same_day.filter(pl.col("year") == target_year)
+    if target_row.height == 0:
+        raise ValueError(f"no training row for target_year={target_year} issue_date={issue_date}")
+    target_oni = float(target_row["oni"][0])
+
+    other = same_day.filter(pl.col("year") != target_year)
+    year_oni = dict(zip(other["year"].to_list(), other["oni"].to_list(), strict=True))
+    year_oni[target_year] = target_oni
+    terciles = oni_terciles(year_oni)
+    target_tercile = terciles[target_year]
+
+    matching_years = [y for y, t in terciles.items() if t == target_tercile and y != target_year]
+    used_fallback = len(matching_years) < min_group_size
+    if used_fallback:
+        matching_years = [y for y in terciles if y != target_year]
+
+    pool = other.filter(pl.col("year").is_in(matching_years))
+    samples = pool["target_remaining_rain_mm"].to_numpy()
+    if len(samples) == 0:
+        raise ValueError(
+            f"no analog years available for target_year={target_year} issue_date={issue_date}"
+        )
+
+    return EnsoClimatologyForecast(
+        target_year=target_year,
+        issue_date=issue_date,
+        target_oni=target_oni,
+        target_tercile=target_tercile,
+        n_in_group=len(samples),
+        used_fallback=used_fallback,
+        quantiles=_quantiles_from_samples(samples),
+        sample_values=samples.tolist(),
     )
