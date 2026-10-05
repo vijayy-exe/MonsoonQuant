@@ -11,9 +11,13 @@ OpenMP + Philox4x32-10, 1M paths in 0.8s, deterministic across thread
 counts, verified against the NumPy reference) are all built, tested, and
 run against real IMD data. M6's Wang/Esscher MPR machinery is built,
 tested, and demoed against real M4 data (illustrative settle only — no
-real settlement data exists yet). M2's NCDEX bhavcopy live fetch stays
-bot-gated (same as MJO/BoM) — not worked around, documented as policy;
-it also blocks M6's real calibration. M7 (forecasting ladder) is next.
+real settlement data exists yet). M7's clim_v1/enso_clim_v1/analog_v1
+are built and real-backtested (both newer rungs honestly underperform
+climatology at n=31 seasons — reported, not hidden or retuned); the
+LightGBM rungs need a dependency decision, tft_v1 is deliberately
+skipped (documented). M2's NCDEX bhavcopy live fetch stays bot-gated
+(same as MJO/BoM) — not worked around, documented as policy; it also
+blocks M6's real calibration.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

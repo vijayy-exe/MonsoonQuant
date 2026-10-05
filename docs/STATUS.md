@@ -19,8 +19,8 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 3 | **M4** Burn & distribution pricing | ✅ done — both M4.1 (burn) and M4.2 (distribution selection) have **real persisted results** | 2 independent P-measure prices + methods note | Burn: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14 (n=31). Distribution: 7 candidates scored by leave-one-out CRPS, `kde_cv` selected (CRPS=213.01); fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm. Both written to `valuations` for all 3 active RAINCHNNAI series. Methods note: `docs/methods/burn_distribution.md` |
 | 4 | **M5** Simulator (build) | ✅ done — M5.1 (GLM fit), M5.2 (NumPy reference + overdispersion fix) and M5.3 (C++ core) all built and verified | C++ vs NumPy ref agree within 2 SE | **M5.3 real results**: Philox4x32-10 verified bit-for-bit against Random123's own known-answer test vectors; 1,000,000 paths × 92 days in **0.80s** (budget 10s); same seed → bit-identical SHA-256 digest across 1/2/4/8 OpenMP threads; statistical agreement with the NumPy reference within Monte Carlo noise. Still open: SPEC's literal 1951-2020 statistical holdout window needs a backfill extension (currently 1991-2020+2023) — a data task, not a code task |
 | 5 | **M5** Simulator (validate) · **M6** MPR (start) | ✅ M5 gates met (see M5 detail); M6 built and verified (see M6 detail) | 1M paths < 10s; seasonal sd ±10% | |
-| 6 | **M6** MPR (finish) · **M7** Forecasting (start) | 🟨 M6's Wang/Esscher/calibration/uncertainty machinery done; real calibration blocked on bhavcopy (same as M2). M7 not started | λ series w/ CIs live; walk-forward runs | |
-| 7 | **M7** Forecasting (finish) | ⬜ not started | CRPSS vs climatology reported | |
+| 6 | **M6** MPR (finish) · **M7** Forecasting (start) | 🟨 M6's Wang/Esscher/calibration/uncertainty machinery done; real calibration blocked on bhavcopy (same as M2). M7: clim_v1, enso_clim_v1, analog_v1 built + real walk-forward backtest run | λ series w/ CIs live; walk-forward runs | |
+| 7 | **M7** Forecasting (finish) | 🟨 CRPSS reported (negative for both newer rungs — honest finding, see M7 detail); LightGBM rungs not started | CRPSS vs climatology reported | |
 | 8 | Buffer | ⬜ not started | — | |
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ⬜ not started | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ⬜ not started | `/v1/hedge` < 5s | |
@@ -158,6 +158,22 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M7 detail (forecasting ladder — 3 of 5 rungs done, real backtest run)
+
+| Item | Status |
+|---|---|
+| `mq.forecasting.features.build_training_rows`: (year, issue_date) training table on the 2-station averaged series | ✅ real run: 3,751 rows across 31 years. First version called `compute_index` per issue-day and didn't finish in 2 minutes; rewritten as one vectorized cumsum pass per season |
+| `clim_v1` | ✅ ledger-live since M1 (unchanged — left as-is per "never modify ledger rows without asking") |
+| `enso_clim_v1`: climatology conditioned on ONI tercile | ✅ built, reuses M4's `oni_terciles` |
+| `analog_v1`: k=5 nearest past seasons on (anomaly, ONI, DMI) | ✅ built, no new dependency (plain NumPy k-NN) |
+| `mq.forecasting.evaluate`: CRPS/CRPSS/pinball/coverage/PIT + walk-forward harness | ✅ enforces "train ≤ year y-1" structurally (combines only strictly-prior years + the single target row before calling the model) |
+| **Real walk-forward backtest, RAINCHNNAI, n=2,541 predictions/model** | ✅ **honest negative finding**: both `enso_clim_v1` (CRPSS=-0.058) and `analog_v1` (CRPSS=-0.165) underperform plain climatology at n=31 seasons — mirrors M4's own ENSO-conditioning underperformance finding. Not retuned to chase a positive number (would overfit the backtest itself). `analog_v1`'s coverage also runs narrow (31.9%/60.9% actual vs. 50%/90% nominal) — a known small-k k-NN property, reported not patched. Full write-up: `docs/methods/forecasting.md` |
+| `lgbm_q_v1` / `lgbm_q_cqr_v1` | ⬜ not started — needs a LightGBM dependency decision (size check against CLAUDE.md's >50MB-without-asking rule) |
+| `tft_v1` (P2) | ⬜ **deliberately skipped, reasoning on record**: SPEC itself calls this a weak candidate at ≈120 seasons; this project's real n=31 is well below even that |
+| Live ledger rows for the two newer rungs | ⬜ needs a separate "live row" builder for the in-progress 2026 season — `build_training_rows` requires a *complete* historical season, so it can't produce today's own row as-is |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -205,7 +221,7 @@ comments) — that's the main remaining honesty caveat.
 | F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ✅ done — 7 candidates, leave-one-out CRPS selection, `kde_cv` wins, written to `valuations` + MLflow |
 | F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | 🟨 machinery done + tested + demoed on real M4 data with an illustrative settle; real NCDEX calibration blocked (bhavcopy bot-gate) |
-| F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | 🟨 clim_v1 (rung 1) done |
+| F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | 🟨 clim_v1, enso_clim_v1, analog_v1 done + real backtested (both newer rungs underperform climatology honestly reported, not hidden); LightGBM rungs + tft_v1 (documented skip) not started |
 | F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ⬜ |
 | F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ⬜ |
 | F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ⬜ |
@@ -287,17 +303,15 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M5 is complete (M5.1 GLM fit, M5.2 NumPy reference + overdispersion
-fix, M5.3 C++ core — 1M paths in 0.80s, deterministic across thread
-counts, parity-tested against the NumPy reference). M6's Wang/Esscher/
-calibration/uncertainty machinery is built, tested, and demoed
-end-to-end against real M4 data (illustrative settle only — see
-docs/methods/mpr.md); real calibration against actual NCDEX settlements
-stays blocked on the same bhavcopy bot-gate as M2. M7 (forecasting
-ladder, `mq.forecasting`) is next, or address an open blocker above
-(the bhavcopy/MJO bot-gates are the two that would unblock the most —
-M2's real market data, M6's real calibration, and M11's research
-outputs all wait on bhavcopy specifically). Worth considering alongside
-either: extending the IMD backfill back to 1951 for SPEC's literal
-statistical-holdout window (currently only 1991-2020+2023) — a data
-task, not a code task.
+Next: M5 and M6 are done (M6's real-data application blocked on
+bhavcopy, see M6 detail). M7: `clim_v1`/`enso_clim_v1`/`analog_v1` are
+built and real-backtested (`docs/methods/forecasting.md` — both newer
+rungs honestly underperform climatology at n=31, not hidden or
+retuned). Remaining M7 work: the LightGBM rungs (`lgbm_q_v1`,
+`lgbm_q_cqr_v1`) need a dependency-size decision first; `tft_v1` is
+deliberately skipped with reasoning on record. Or address an open
+blocker above (bhavcopy/MJO bot-gates block the most — M2's real market
+data, M6's real calibration, and M11's research outputs all wait on
+bhavcopy specifically). Worth considering alongside either: extending
+the IMD backfill back to 1951 for SPEC's literal statistical-holdout
+window (currently only 1991-2020+2023) — a data task, not a code task.

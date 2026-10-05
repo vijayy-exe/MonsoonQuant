@@ -5,6 +5,74 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 4) — M7 forecasting ladder: clim_v1 extended with enso_clim_v1, analog_v1; real walk-forward backtest
+
+Continuation of the same day, after M6 was closed out. User said
+"continue"; picked up SPEC's M7 (forecasting ladder, `mq.forecasting`).
+
+- **`mq.forecasting.features.build_training_rows`**: one row per
+  (year, issue_date) across every historical season — the shared
+  training table `enso_clim_v1`, `analog_v1`, and later rungs all use.
+  Built on the real 2-station averaged daily series (mirrors
+  `mq.index.engine`'s own station averaging), not clim_v1's original
+  single-station lookup — clim_v1's existing ledger rows are left
+  untouched per SPEC's "never modify ledger rows without asking."
+  **Real perf bug caught before it became a 2-minute-plus hang**: the
+  first version called `compute_index` once per issue-day (~3,800
+  calls for the real 31-season sample) and didn't finish inside a
+  2-minute timeout — the same per-call LPA/grid-lookup cost M4's own
+  burn-analysis perf fix addressed, just multiplied ~120x by one call
+  per day instead of one per season. Rewrote the anomaly feature as a
+  single vectorized cumulative-sum pass per season instead: real run
+  now completes in a few seconds (3,751 rows, 31 years).
+- **`enso_clim_v1`** (`mq.forecasting.climatology`): empirical
+  quantiles of remaining rain from years sharing the target year's ONI
+  tercile — reuses `mq.pricing.distribution.oni_terciles` directly
+  (M4's own tercile classification, now serving a second milestone).
+- **`analog_v1`** (`mq.forecasting.analog`): k=5 nearest past seasons
+  by standardized Euclidean distance on (observed-to-date anomaly, ONI,
+  DMI). No new dependency — k-NN over 3 features and a few thousand
+  rows is a few lines of NumPy, not a reason to add scikit-learn.
+- **`mq.forecasting.evaluate`**: CRPS (via `scoringrules`, already a
+  dependency), CRPSS, pinball loss, interval coverage, PIT values, and
+  a walk-forward backtest harness that enforces "train ≤ year y-1" by
+  construction (each test row is forecast using a table built from only
+  strictly-prior years plus that one row — the same shape the live
+  forecast functions already expect, so backtesting and live forecasting
+  share one code path).
+- **Real walk-forward backtest, RAINCHNNAI, all 31 seasons,
+  min_train_years=10, n=2,541 predictions per model — an honest
+  negative finding, reported as such**: both `enso_clim_v1` (CRPSS=
+  -0.058) and `analog_v1` (CRPSS=-0.165) underperform plain
+  climatology. This was **not** retuned to chase a positive number —
+  doing that against the same backtest used to judge it would just be
+  overfitting the hyperparameter to this one dataset, exactly what
+  walk-forward validation exists to prevent. It also isn't a surprise
+  in isolation: it mirrors M4's own finding that ENSO-conditioned
+  climatology underperformed `kde_cv` for burn pricing (CRPS 231.0 vs.
+  213.01) — the same small-sample conclusion (n≈30 analog years per
+  issue-day) recurring at the forecasting-ladder level. `analog_v1`'s
+  coverage also runs narrow (31.9%/60.9% actual vs. 50%/90% nominal) —
+  a known small-k k-NN property, reported rather than patched with an
+  unvalidated variance-inflation hack. Full write-up:
+  `docs/methods/forecasting.md`. Script + log:
+  `.scratch/forecasting_backtest.py` (gitignored, real-data-dependent).
+- **`tft_v1` (P2) deliberately skipped, reasoning on record**: SPEC
+  itself flags this rung as a weak candidate at "≈120 seasons"; this
+  project's real sample is n=31, well below even that already-weak
+  threshold — a Temporal Fusion Transformer would almost certainly just
+  overfit at this scale.
+- **Not yet done**: the LightGBM rungs (`lgbm_q_v1`, `lgbm_q_cqr_v1`)
+  need a new dependency decision (size check against CLAUDE.md's
+  >50MB-without-asking rule, not yet done); live ledger rows for the
+  two newer rungs need a separate "live row" builder for the
+  in-progress 2026 season (`build_training_rows` requires a *complete*
+  historical season, so it can't build today's own row as-is).
+- `docs/STATUS.md`, `CLAUDE.md` updated: M7 row now in-progress with
+  the real CRPSS numbers, new M7 detail table, F12 updated.
+
+---
+
 ## 2026-10-05 (cont. 3) — M6 market price of risk: Wang + Esscher, calibration, uncertainty
 
 Continuation of the same day, after M5 was closed out. User said
