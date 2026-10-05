@@ -5,6 +5,61 @@ measured numbers.
 
 ---
 
+## 2026-10-06 — M12 API foundation: 8 of 18 endpoints, two real gaps found and fixed against the real DB
+
+Continuation from the previous day (M0-M11 complete); picked up M12
+(the public REST API, `mq.api`).
+
+- **Built a real subset of SPEC's 18 listed endpoints** — each backed
+  by an already-tested M1-M11 function, not a stub: `/v1/health`,
+  `/v1/health/data`, `/v1/contracts`, `/v1/contracts/{code}/spec`,
+  `/v1/series/{id}/valuation`, `/v1/series/{id}/valuations/compare`,
+  `/v1/ledger`, `/v1/ledger/verify`. Response envelope (`data`/`meta`)
+  and RFC 9457 `problem+json` errors (`mq/stale-data`,
+  `mq/unknown-series`, `mq/infeasible-hedge`) match SPEC §9.1 exactly.
+- Added `fastapi` + `uvicorn` (both tiny, small pure-Python core deps
+  already mostly present) and `httpx2` as a dev-only dependency for
+  `fastapi.testclient.TestClient` — the actively-recommended successor
+  starlette's own current testclient module prefers over the
+  now-deprecated plain `httpx`.
+- **Confirmed live, not just via `TestClient`**: ran a real `uvicorn`
+  server, curled `/v1/health` and `/openapi.json` directly, confirmed
+  the auto-generated OpenAPI schema lists all 8 routes correctly.
+- **Two real findings, caught by testing against the real DB rather
+  than synthetic fixtures**:
+  (a) `valuations/compare`'s first design joined on "whatever was
+  written on the same calendar day" — querying it against the real DB
+  showed RAINCHNNAI's burn and dist valuations were genuinely written
+  a day apart (M4 ran them in separate passes), so the original join
+  would silently drop a method whenever `as_of` wasn't given. Fixed to
+  return each method's own most recent row instead — also the more
+  useful semantic.
+  (b) RAINCHNNAI's listed series (`RAINCHNNAI-OCT26/NOV26/DEC26`) were
+  never actually registered in the real `contracts` table, despite
+  having real burn/dist valuations and ledger rows — only RAINMUMBAI's
+  four expired series were present. Fixed by calling the already-built
+  `mq.specs.registry.register_contract_spec`/`register_listed_series`
+  directly against the real database (a data-completeness fix, not a
+  code change; idempotent, safe to re-run).
+- Integration tests (`tests/integration/test_api.py`) exercise the real
+  running API against the real Postgres instance's real data, not
+  fixtures — including the real burn valuation's `n_paths=31` and a
+  passing `ledger/verify` against the real hash chain.
+- **Deliberately did not create `web/lib/api/openapi.json`** yet — that
+  path belongs under M13's own `web/` scaffold (which doesn't exist
+  yet), not manufactured ahead of it.
+- Remaining for M12: 10 more endpoints (`index`, `quotes`, `forecast`,
+  `greeks`, `mpr`, `basis` GETs — real functions already exist from
+  M3/M5-M11, just not wired into routes; the three heavy POSTs
+  `hedge`/`parametric/design`/`scenarios/run` need request schemas plus
+  SPEC's `n_paths` cap/5s time-box; `track-record`, `lineage`), plus
+  OpenAPI file export, TS codegen, rate limiting, caching, real CORS.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M12 row and F19 now
+  in-progress, new M12 detail table. Full write-up:
+  `docs/methods/api.md`.
+
+---
+
 ## 2026-10-05 (cont. 11) — M11 scenario lab: 8 real scenarios, delta=1.0/gamma≈0 confirmed across every shock; M0-M11 all complete
 
 Continuation of the same day, after M11's parametric cover designer

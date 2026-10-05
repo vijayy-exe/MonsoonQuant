@@ -37,7 +37,12 @@ lab is built and real-run too (8 scenarios incl. a real 2015 historical
 analog; delta=1.0/gamma≈0 confirmed across every shock). M2's NCDEX
 bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
 around, documented as policy; it also blocks M6/M8's real calibration.
-M0-M11 are all done; M12 (API hardening) is next.
+M0-M11 are all done. M12 (API) is in progress: 8 of 18 endpoints built
+(health/contracts/series-valuation/ledger), confirmed via a real
+uvicorn run and real integration tests against the real DB, which also
+surfaced and fixed two genuine gaps (a valuations/compare join that
+would've silently dropped a method, and RAINCHNNAI's listed series
+never having been registered in the contracts table).
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

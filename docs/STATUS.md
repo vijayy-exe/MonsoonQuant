@@ -25,7 +25,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ✅ M8 done (see M8 detail); M9 Greeks done (delta/gamma exact, theta meets SE<5% with enough paths — see M9 detail) | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
-| 12 | **M12** API hardening · live eval | ⬜ not started | contract tests + OpenAPI drift check green | |
+| 12 | **M12** API hardening · live eval | 🟨 8 of 18 endpoints built + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
@@ -226,6 +226,24 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M12 detail (API — 8 of 18 endpoints built)
+
+| Item | Status |
+|---|---|
+| Response envelope (`data`/`meta`), RFC 9457 `problem+json` errors (`mq/stale-data`, `mq/unknown-series`, `mq/infeasible-hedge`) | ✅ matches SPEC §9.1 exactly |
+| `GET /v1/health`, `/v1/health/data` | ✅ real row counts + latest dates from `index_values`/`market_quotes`/`prediction_ledger` |
+| `GET /v1/contracts`, `/v1/contracts/{code}/spec` | ✅ real `contracts`/`contract_specs` tables |
+| `GET /v1/series/{id}/valuation`, `/valuations/compare` | ✅ real `valuations` table (M4) |
+| `GET /v1/ledger`, `/v1/ledger/verify` | ✅ wraps `mq.ledger.verify.verify_chain` directly |
+| **Confirmed live**, not just `TestClient` | ✅ ran a real `uvicorn` server, curled it, checked the auto-generated OpenAPI schema lists all 8 routes correctly |
+| **Two real findings caught against the real DB, not fixtures**: (a) `valuations/compare`'s original same-day join would have silently dropped a method — RAINCHNNAI's burn/dist valuations were genuinely written a day apart; (b) RAINCHNNAI's listed series were never registered in the real `contracts` table despite having real valuations/ledger rows | ✅ (a) fixed to return each method's own latest row; (b) fixed by calling the already-built registry functions against the real DB (a data fix, not a code change, idempotent). Full write-up: `docs/methods/api.md` |
+| `GET /v1/series/{id}/index`, `/quotes`, `/forecast`, `/greeks`, `/mpr`, `/basis` | ⬜ real underlying functions exist (M3, M5-M11); not yet wired into routes |
+| `POST /v1/hedge`, `/v1/parametric/design`, `/v1/scenarios/run` | ⬜ need request schemas + SPEC's `n_paths` cap/5s time-box; underlying functions exist (M9, M11) |
+| `GET /v1/track-record`, `/v1/lineage` | ⬜ not started |
+| OpenAPI export to a file, TS codegen, rate limiting, caching, CORS to a real origin | ⬜ not started — the file-export path (`web/lib/api/openapi.json`) deliberately not created ahead of M13's own `web/` scaffold |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -280,7 +298,7 @@ comments) — that's the main remaining honesty caveat.
 | F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
 | F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
-| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ⬜ |
+| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | 🟨 8 of 18 endpoints built (health/contracts/series-valuation/ledger), real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
 | F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
 | F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
 | F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ |
@@ -355,18 +373,19 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M11 are all done. Only M12+ (API hardening, dashboard, deploy,
-paper) remain of the whole 15-week plan — M6/M8's real-data application
-stays blocked on bhavcopy (see M6/M8 detail); M7's `tft_v1` deliberately
-skipped (see M7 detail). M11's scenario lab real run
-(`docs/methods/scenarios.md`) confirmed delta=1.0/gamma≈0 structurally
-across all 8 real scenarios, and the real 2015 historical analog landed
-close to the synthetic el_nino preset — a genuine internal-consistency
-check. M12 (`mq.api`, FastAPI + OpenAPI + typed TS client, contract
-tests) is next, or address an open blocker above (bhavcopy/MJO
-bot-gates block the most — M2's real market data, M6/M8's real
-calibration, and M11's own research outputs all wait on bhavcopy
-specifically). Worth considering alongside
+Next: M0-M11 are all done. M12 (API) is in progress: 8 of 18 endpoints
+built (health/contracts/series-valuation/ledger), real envelope +
+RFC9457 errors, confirmed via a real uvicorn run, real integration
+tests against the real DB (which also surfaced and fixed two genuine
+data/design gaps — see M12 detail, `docs/methods/api.md`). Remaining
+for M12: the index/quotes/forecast/greeks/mpr/basis GETs (real
+functions exist, just not wired into routes) and the three heavy POSTs
+(hedge/parametric/scenarios — need request schemas). M6/M8's real-data
+application stays blocked on bhavcopy (see M6/M8 detail); M7's
+`tft_v1` deliberately skipped (see M7 detail). Or address an open
+blocker above (bhavcopy/MJO bot-gates block the most — M2's real
+market data, M6/M8's real calibration, and M11's own research outputs
+all wait on bhavcopy specifically). Worth considering alongside
 either: extending the IMD backfill back to 1951 for SPEC's literal
 statistical-holdout window (currently only 1991-2020+2023) — a data
 task, not a code task.
