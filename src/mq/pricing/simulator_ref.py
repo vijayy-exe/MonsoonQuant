@@ -39,18 +39,14 @@ into a new year), since neither RAINCHNNAI (Sep 1-Dec 31) nor RAINMUMBAI
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
 from scipy import optimize
 
 from mq.index.lpa import DailyLPA
-from mq.pricing.simulator_glm import (
-    ChainModel,
-    fourier_design,
-    predict_gamma_mean,
-    predict_logistic,
-)
+from mq.pricing.simulator_features import build_daily_arrays
+from mq.pricing.simulator_glm import ChainModel
 
 
 @dataclass(frozen=True)
@@ -71,42 +67,18 @@ class SimResult:
     seasonal_total_mm: np.ndarray  # shape (n_paths,): simulated rain total only (diagnostic)
 
 
-def _lpa_lookup(daily_lpa: DailyLPA) -> dict[tuple[int, int], float]:
-    return dict(
-        zip(
-            zip(daily_lpa.table["month"].to_list(), daily_lpa.table["day"].to_list(), strict=True),
-            daily_lpa.table["lpa_mm"].to_list(),
-            strict=True,
-        )
-    )
-
-
 def simulate(model: ChainModel, daily_lpa: DailyLPA, request: SimRequest) -> SimResult:
-    if len(request.covariates) != len(model.covariate_cols):
-        raise ValueError(
-            f"request supplies {len(request.covariates)} covariate value(s), "
-            f"model expects {len(model.covariate_cols)} ({model.covariate_cols})"
-        )
-    rng = np.random.default_rng(request.seed)
     n, d = request.n_paths, request.n_days
+    rng = np.random.default_rng(request.seed)
 
-    dates = [request.start_date + timedelta(days=t) for t in range(d)]
-    doy = np.array([dt.timetuple().tm_yday for dt in dates], dtype=float)
-    lpa_by_day = _lpa_lookup(daily_lpa)
-    try:
-        lpa_mm = np.array([lpa_by_day[(dt.month, dt.day)] for dt in dates])
-    except KeyError as exc:
-        raise ValueError(f"no LPA value for calendar day {exc.args[0]}") from exc
-
-    cov = (
-        np.tile(np.asarray(request.covariates, dtype=float), (d, 1))
-        if request.covariates
-        else np.zeros((d, 0))
+    arrays = build_daily_arrays(
+        model,
+        daily_lpa,
+        start_date=request.start_date,
+        n_days=d,
+        covariates=request.covariates,
     )
-    design = np.concatenate([fourier_design(doy, n_harmonics=model.n_harmonics), cov], axis=1)
-    p01 = predict_logistic(model.occurrence_01, design)
-    p11 = predict_logistic(model.occurrence_11, design)
-    mean_amt = predict_gamma_mean(model.amount, design)
+    p01, p11, mean_amt, lpa_mm = arrays.p01, arrays.p11, arrays.mean_amt, arrays.lpa_mm
     shape = model.amount.extra["shape"]
 
     if request.overdispersion_sd > 0:

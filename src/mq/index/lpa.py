@@ -28,6 +28,20 @@ class DailyLPA:
     table: pl.DataFrame  # columns: month, day, lpa_mm
 
 
+def daily_lpa_lookup(daily_lpa: DailyLPA) -> dict[tuple[int, int], float]:
+    """`daily_lpa.table` as a plain (month, day) -> lpa_mm dict — the
+    shape the simulator needs for a fast per-calendar-day lookup (both
+    `mq.pricing.simulator_ref` and `mq.pricing.simulator` build the same
+    lookup from the same table; factored out once here)."""
+    return dict(
+        zip(
+            zip(daily_lpa.table["month"].to_list(), daily_lpa.table["day"].to_list(), strict=True),
+            daily_lpa.table["lpa_mm"].to_list(),
+            strict=True,
+        )
+    )
+
+
 def compute_daily_lpa(
     rain_grid: pl.DataFrame,
     *,
