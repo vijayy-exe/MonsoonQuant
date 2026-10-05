@@ -187,7 +187,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M9 detail (Greeks — done; hedge optimiser — not started)
+## M9 detail (Greeks and hedge optimiser — both done)
 
 | Item | Status |
 |---|---|
