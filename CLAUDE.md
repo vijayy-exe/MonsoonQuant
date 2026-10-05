@@ -19,9 +19,13 @@ conformal calibration demonstrably fixes coverage anyway; tft_v1 (P2)
 is deliberately skipped with reasoning on record. M8's forecast-
 conditioned pricing (quantile-mapped simulator splice) is built and
 confirms SPEC's own "never assume monotonic shrinking uncertainty" on
-a real end-to-end run. M2's NCDEX bhavcopy live fetch stays bot-gated
-(same as MJO/BoM) — not worked around, documented as policy; it also
-blocks M6/M8's real calibration. M9 (Greeks + hedge optimiser) is next.
+a real end-to-end run. M9's Greeks are built (delta/gamma exact by the
+CDR index's own additive structure; theta meets SPEC's SE<5% bar with
+enough paths via the C++ core). M2's NCDEX bhavcopy live fetch stays
+bot-gated (same as MJO/BoM) — not worked around, documented as policy;
+it also blocks M6/M8's real calibration. M9's hedge optimiser is next
+(needs M10's basis engine for real joint scenarios — M10 may come
+first).
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

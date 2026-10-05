@@ -5,6 +5,60 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 7) — M9 Greeks: delta/gamma exact by index design; theta meets SE<5% once the C++ core makes enough paths practical
+
+Continuation of the same day, after M8 was closed out. User said
+"continue until session limit hits"; picked up SPEC's M9 (Greeks,
+`mq.risk.greeks` — the hedge-optimiser half of M9 needs M10's basis
+engine for real scenarios, see below).
+
+- **`mq.risk.greeks`**: delta, gamma, and both theta variants (no-rain
+  day, climatological day — SPEC asks for both, shown side by side),
+  all via common random numbers against the M5 simulator's full-season
+  payoff. Explicitly labelled "model sensitivities, not exchange-
+  standard Greeks" per SPEC — there's no options market for this
+  product to validate against.
+- **Delta/gamma get CRN "for free," and it's structural, not luck**:
+  `observed_to_date` is a pure additive offset on `terminal_index` in
+  both simulator backends, never touching the RNG, so bumping it with
+  the same seed gives *exact* path-for-path pairing. Verified this is
+  model-independent by construction: on a fully deterministic
+  (always-dry) synthetic model, delta=1.0 and gamma=0.0 *exactly* (not
+  approximately) — confirmed again on the real RAINCHNNAI model (same
+  exact 1.0/0.0). The CDR index's own additive definition makes this a
+  genuine mathematical fact about the product, not a simulator
+  approximation that happened to come out clean.
+- **Theta's CRN pairing is only partial** (shifting start_date by a day
+  reshuffles which calendar day lands at RNG day-index 0) — reported
+  honestly via a `pairing="exact"`/`"partial"` field on every result
+  rather than claiming one guarantee for both.
+- **Real finding, tracked down rather than left as a caveat**: at
+  n_paths=20,000, theta misses SPEC's "SE < 5% of value" bar badly
+  (37-148% on the real model). Rather than accept that, tested the
+  hypothesis that more paths would close the gap — switched
+  `full_season_payoff` from M8's NumPy reference to the C++ simulator
+  core (M5.3) specifically to make n_paths=1,000,000 practical (~1.7s
+  per call instead of what would be minutes in NumPy). At that path
+  count, `theta_no_rain_day` meets the bar (4.55%).
+  `theta_climatological_day` still doesn't (80%) — but this has a
+  clean explanation, not a remaining bug: a climatological day's
+  deviation is zero-mean by construction, so its true theta is
+  plausibly exactly zero, and SE/value diverges as value->0 regardless
+  of sample size — a relative-SE threshold is mathematically the wrong
+  tool for a quantity whose null value is zero. Script + log:
+  `.scratch/greeks_demo.py` (gitignored). Full write-up:
+  `docs/methods/greeks.md`.
+- **M9's other half (hedge optimiser, `mq.risk.hedge`/`.cvar`) not
+  started**: SPEC's own stated inputs ("joint scenarios of (local rain,
+  contract index) from basis engine") name M10's basis engine as a
+  prerequisite for real scenarios — noted in STATUS.md rather than
+  building the optimizer against placeholder scenarios right now;
+  M10-before-M9's-hedge-piece may be the more natural order.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M9's Greeks row done, F14
+  done, new M9 detail table, resume-pointer notes the M10 dependency.
+
+---
+
 ## 2026-10-05 (cont. 6) — M8 forecast-conditioned pricing: real end-to-end run confirms SPEC's own non-monotonic-uncertainty warning
 
 Continuation of the same day, after M7 was closed out. User said

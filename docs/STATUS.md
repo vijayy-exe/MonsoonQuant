@@ -22,8 +22,8 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 6 | **M6** MPR (finish) · **M7** Forecasting (start) | 🟨 M6's Wang/Esscher/calibration/uncertainty machinery done; real calibration blocked on bhavcopy (same as M2). M7: all 5 built rungs real-backtested | λ series w/ CIs live; walk-forward runs | |
 | 7 | **M7** Forecasting (finish) | ✅ done — 5 rungs built, real walk-forward backtest run, CRPSS reported honestly (negative for all 4 newer rungs; conformal calibration demonstrably fixes coverage regardless). `tft_v1` deliberately skipped (reasoning on record) | CRPSS vs climatology reported | |
 | 8 | Buffer | ⬜ not started | — | |
-| 9 | **M8** Conditioned pricing · **M9** Greeks | 🟨 M8 done (real end-to-end run, non-monotonic band width confirmed on real data — see M8 detail); M9 not started | 4-method comparison daily; Greek SE < 5% | |
-| 10 | **M9** Hedge optimiser | ⬜ not started | `/v1/hedge` < 5s | |
+| 9 | **M8** Conditioned pricing · **M9** Greeks | ✅ M8 done (see M8 detail); M9 Greeks done (delta/gamma exact, theta meets SE<5% with enough paths — see M9 detail) | 4-method comparison daily; Greek SE < 5% | |
+| 10 | **M9** Hedge optimiser | ⬜ not started — needs M10's basis engine for real joint (local rain, index) scenarios | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ⬜ not started | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ⬜ not started | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
@@ -187,6 +187,17 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M9 detail (Greeks — done; hedge optimiser — not started)
+
+| Item | Status |
+|---|---|
+| `mq.risk.greeks`: delta/gamma/theta via common random numbers | ✅ delta/gamma get *exact* CRN pairing (observed_to_date is a pure additive offset, never touches the RNG); theta's two variants (no-rain-day, climatological-day) get only *partial* pairing (shifting start_date reshuffles which calendar day lands at RNG day-index 0) — reported as `pairing="exact"`/`"partial"` per result, not claimed uniformly |
+| Closed-form correctness checks | ✅ on a fully deterministic (always-dry) model: delta=1.0 and gamma=0.0 exactly, theta matches hand-derived values including a single-day-season edge case |
+| **Real run, RAINCHNNAI**: delta/gamma exact (structural — the CDR index is additive in observed_to_date by construction, true for any fitted model); theta at n_paths=20,000 misses SPEC's SE<5% bar badly (37-148%) | ✅ **switched the Greeks module to the C++ simulator core** (not M8's NumPy reference) specifically to make 1,000,000-path calls practical (~1.7s each); at that path count `theta_no_rain_day` meets the bar (4.55%). `theta_climatological_day` still doesn't (80%) — explained, not a remaining bug: its true value is plausibly exactly zero (a climatological day is zero-mean by construction), so SE/value diverges regardless of sample size. Full write-up: `docs/methods/greeks.md` |
+| `mq.risk.hedge`/`mq.risk.cvar` (hedge optimiser) | ⬜ not started — SPEC's own inputs for this ("joint scenarios of (local rain, contract index) from basis engine") name M10's basis engine as a prerequisite for *real* scenarios; the optimization machinery itself (min-variance formula, CVaR LP) could be built generically against synthetic scenarios first, same pattern as M6's MPR machinery before real settlement data existed |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -236,8 +247,8 @@ comments) — that's the main remaining honesty caveat.
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | 🟨 machinery done + tested + demoed on real M4 data with an illustrative settle; real NCDEX calibration blocked (bhavcopy bot-gate) |
 | F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | ✅ done — all 5 rungs built + real-backtested (every newer rung underperforms climatology on CRPS at n=31, honestly reported; conformal calibration fixes analog_v1/lgbm_q_v1's under-coverage even though it doesn't rescue CRPS). `tft_v1` (P2) deliberately skipped, reasoning on record |
 | F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ✅ done — quantile-mapped simulator splice, real end-to-end run confirms SPEC's own "never assume monotonic shrinking uncertainty" on real data (band90 1171→1175→1125→**1420**→1240mm across h=7..89 days) |
-| F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ⬜ |
-| F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ⬜ |
+| F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ✅ done — delta/gamma exact (structural, additive-in-obs index), theta_no_rain_day meets SE<5% at 1M paths (C++ core), theta_climatological_day's near-zero true value makes the relative-SE bar inapplicable (explained, not hidden) |
+| F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ⬜ needs M10's basis engine for real joint (local rain, index) scenarios |
 | F16 | Basis-risk engine + heatmap | P1 | M10 | ⬜ |
 | F17 | Parametric cover designer | P1 | M11 | ⬜ |
 | F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ⬜ |
@@ -318,13 +329,15 @@ tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
 Next: M5, M6, M7, and M8 are all done (M6/M8's real-data application
 blocked on bhavcopy, see M6/M8 detail; M7's `tft_v1` deliberately
-skipped, see M7 detail). M8's real end-to-end run confirms SPEC's own
-"never assume monotonic shrinking uncertainty" on real data
-(`docs/methods/conditioned.md`). M9 (Greeks + hedge optimiser,
-`mq.risk`) is next, or address an open blocker above (bhavcopy/MJO
-bot-gates block the most — M2's real market data, M6/M8's real
-calibration, and M11's research outputs all wait on bhavcopy
-specifically). Worth considering alongside
+skipped, see M7 detail). M9's Greeks are done (real run on RAINCHNNAI,
+`docs/methods/greeks.md` — delta/gamma exact, theta meets SPEC's SE<5%
+bar once enough paths are used). M9's hedge optimiser is next, or
+address an open blocker above (bhavcopy/MJO bot-gates block the most —
+M2's real market data, M6/M8's real calibration, and M11's research
+outputs all wait on bhavcopy specifically) — note the hedge optimiser
+itself names M10's basis engine as a prerequisite for real scenarios,
+so M10 before M9's hedge piece may be the more natural order. Worth
+considering alongside
 either: extending the IMD backfill back to 1951 for SPEC's literal
 statistical-holdout window (currently only 1991-2020+2023) — a data
 task, not a code task.
