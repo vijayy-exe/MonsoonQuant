@@ -16,7 +16,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 1 | **M1** Specs + ledger live | ✅ done | ledger ≥ 1 verified daily row/contract; `mq ledger verify` passes | RAINCHNNAI and RAINMUMBAI specs **fully resolved from official NCDEX documents** (V1-V11 closed). RAINCHNNAI has a real verified ledger row; RAINMUMBAI's season is closed for 2026 (see below) |
 | 2 | **M2** Market data & DQ | 🟨 pipeline built, no real data yet | DQ gate blocks on bad data | NCDEX bhavcopy parser/normaliser + DQ05-DQ10 built and tested against the real documented schema; live fetch blocked (bot-gated), needs a manually-downloaded CSV |
 | 2 | **M3** Index engine | ✅ done | index reproducible for any past date | `compute_index` implements the real CDR methodology exactly, golden-tested. `index_values` DB writer and `proxy_error` (ready, no official series to compare against yet) both built |
-| 3 | **M4** Burn & distribution pricing | 🟨 burn done (M4.1) with a **real persisted result**, distribution fitting (M4.2) not started | 2 independent P-measure prices + methods note | `mq.pricing.burn` reconstructed all 31 historical seasons from real data: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14. Written to `valuations` for all 3 active RAINCHNNAI series |
+| 3 | **M4** Burn & distribution pricing | ✅ done — both M4.1 (burn) and M4.2 (distribution selection) have **real persisted results** | 2 independent P-measure prices + methods note | Burn: mean=905.6mm, median=843.4mm, P5=449.6, P95=1699.0, skew=1.14 (n=31). Distribution: 7 candidates scored by leave-one-out CRPS, `kde_cv` selected (CRPS=213.01); fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm. Both written to `valuations` for all 3 active RAINCHNNAI series. Methods note: `docs/methods/burn_distribution.md` |
 | 4 | **M5** Simulator (build) | ⬜ not started | C++ vs NumPy ref agree within 2 SE | needs CMake/pybind11/OpenMP toolchain — not yet installed |
 | 5 | **M5** Simulator (validate) · **M6** MPR (start) | ⬜ not started | 1M paths < 10s; seasonal sd ±10% | |
 | 6 | **M6** MPR (finish) · **M7** Forecasting (start) | ⬜ not started | λ series w/ CIs live; walk-forward runs | |
@@ -112,6 +112,21 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M4 detail (burn & distribution pricing, complete)
+
+| Item | Status |
+|---|---|
+| `mq.pricing.burn` — real 31-season CDR reconstruction | ✅ mean=905.6mm, median=843.4mm, sd=388.5, P5=449.6, P95=1699.0, skew=1.14 |
+| `mq.pricing.distribution` — 7 candidates (gamma, lognormal, weibull, kde_silverman, kde_cv, bootstrap, enso_climatology) | ✅ all expose a common Monte-Carlo-sample + optional-logpdf interface |
+| `mq.pricing.selection` — leave-one-out CV, CRPS as primary criterion (SPEC's "AIC secondary only", taken further: AIC not computed at all) | ✅ `kde_cv` selected, CRPS=213.01, narrowly ahead of gamma (213.14) and weibull (213.30) |
+| `valuations` writer — both `method="burn"` and `method="dist"` rows | ✅ written for all 3 active RAINCHNNAI series |
+| MLflow experiment tracking (`burn_distribution_selection`) | ✅ working — see port-5001 fix below |
+| Methods note | ✅ `docs/methods/burn_distribution.md` — full candidate table, CRPS results, the `-inf` log-likelihood finding (free-loc gamma/weibull instability, not a bug), ENSO-conditioning's honest underperformance at this sample size |
+| **Perf fix**: `compute_index`'s LPA groupby + grid-cell lookup, now cached/reused across burn's 31 calls | ✅ `build_burn_sample`'s real end-to-end run: **254s → 12s (~21x)**, output byte-identical before/after (no behavior change, pure perf) |
+| Detrending | ⬜ explicitly deferred — see methods note §"What's not done yet" |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -132,6 +147,12 @@ comments) — that's the main remaining honesty caveat.
   data: n=31, mean=905.6mm, median=843.4mm, sd=388.5, P5=449.6, P95=1699.0,
   skew=1.14 (right-skewed, as rainfall totals typically are). Written to
   `valuations` (method=burn, measure=P) for all 3 active series.
+- **Real distribution selection**: 7 candidates, leave-one-out CV over all
+  31 seasons, `kde_cv` selected by CRPS (213.01, narrowly ahead of
+  gamma/weibull). fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm. Written
+  to `valuations` (method=dist, measure=P) for all 3 active series; full
+  candidate scores logged to MLflow (`burn_distribution_selection`
+  experiment, port 5001).
 - Scratch backfill scripts (`.scratch/*.py`, not committed, gitignored)
   are reusable if any future gap needs filling — 120s-per-year subprocess
   timeout pattern, proven to recover cleanly from transient IMD outages.
@@ -150,7 +171,7 @@ comments) — that's the main remaining honesty caveat.
 | F06 | Index replication engine + proxy-error tracking | P0 | M3 | ✅ `compute_index` done, golden-tested, 2 real performance bugs fixed; **real live CDR value computed and written** (observed_to_date=815.3mm as of Oct 3 2026); proxy_error has nothing to compare against yet |
 | F07 | **Prediction Ledger** (append-only, hash-chained, public) | P0 | M1→ | 🟨 fully working locally; public GitHub mirror deferred (no remote) |
 | F08 | Historical burn analysis (with detrending options) | P0 | M4 | 🟨 real 31-season reconstruction done and persisted; detrending options not started |
-| F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ⬜ |
+| F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ✅ done — 7 candidates, leave-one-out CRPS selection, `kde_cv` wins, written to `valuations` + MLflow |
 | F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | ⬜ |
 | F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | 🟨 clim_v1 (rung 1) done |
@@ -210,6 +231,10 @@ explicit terms; treat as not cleared for redistribution.
 
 - Local Postgres is on **port 5433**, not 5432 (native Homebrew Postgres
   owns 5432).
+- MLflow is on **port 5001**, not 5000 — macOS's AirPlay Receiver
+  (ControlCenter) silently owns 5000 and 403s anything sent there before
+  Docker even sees it. Diagnosed via `lsof -nP -iTCP:5000 -sTCP:LISTEN`
+  showing `ControlCenter` as the listener, not an MLflow auth bug.
 - Docker runs via **colima** (`colima start` if needed).
 - Keep the Makefile's `PYTHONPATH` export — works around a macOS/uv/
   CPython 3.12 interaction that breaks `import mq`.
@@ -231,5 +256,6 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M3 (index engine) is now unblocked with the real CDR methodology
-known. Or address an open blocker above.
+Next: M4 is complete. M5 (C++ simulator) is next — needs a toolchain
+decision (CMake present; pybind11/scikit-build-core/OpenMP not yet
+installed). Or address an open blocker above.

@@ -5,6 +5,63 @@ measured numbers.
 
 ---
 
+## 2026-10-05 — M4.2 distribution selection (real results); M4 complete; LPA/grid-cell perf fix
+
+- **M4.2 distribution fitting + selection, run for real against the full
+  31-season RAINCHNNAI burn sample** (`mq.pricing.distribution`,
+  `mq.pricing.selection`): 7 candidates (gamma, lognormal, weibull,
+  kde_silverman, kde_cv, bootstrap, enso_climatology), scored by
+  leave-one-out CV using mean CRPS (`scoringrules`) as the primary
+  criterion, log-likelihood diagnostic only. **Selected: `kde_cv`**
+  (CRPS=213.01), narrowly ahead of gamma (213.14) and weibull (213.30).
+  fair_value=902.7mm, lo90=318.0mm, hi90=1796.6mm — written to
+  `valuations` (method=dist, measure=P) for all 3 active RAINCHNNAI
+  series. Full candidate scores logged to MLflow
+  (`burn_distribution_selection` experiment).
+- **Self-caught factual error, corrected before it propagated**: the
+  methods note first claimed 2005 and 2015 (the two wettest burn years)
+  were "both known strong El Niño years." Independently re-ran
+  `season_oni()` against the real ingested ONI data before relying on
+  this claim further: 2015's ASO-mean ONI is 2.01 (strong El Niño,
+  confirmed), but 2005's is **-0.17** (near-neutral — not El Niño).
+  Corrected `docs/methods/burn_distribution.md` immediately.
+- **MLflow port-5000 403s root-caused**: not an MLflow auth issue —
+  macOS's AirPlay Receiver (ControlCenter) owns port 5000 by default and
+  403s anything Docker tries to forward there. `lsof -nP -iTCP:5000
+  -sTCP:LISTEN` showed `ControlCenter` as the listener. Fixed by
+  remapping MLflow to host port 5001 (`docker-compose.yml`,
+  `mq.config.mlflow_tracking_uri`); verified with an actual successful
+  `mlflow.start_run()` call, not just a port-open check.
+- **Perf fix: `compute_index`'s LPA + grid-cell lookup, cached/reused
+  across burn's 31 calls.** Two real bugs found by actually timing the
+  full 31-season reconstruction after M4.2 (not caught by golden tests,
+  which use tiny fixtures):
+  1. Each station's ~50-year LPA groupby was recomputed from scratch on
+     every one of burn's 31 `compute_index` calls, even though all 31
+     share the identical LPA base period. Added an optional `lpa_cache:
+     dict[(station_id, base_start, base_end), DailyLPA]`, threaded
+     through `mq.pricing.burn.build_burn_sample` → `reconstruct_season` →
+     `compute_index`, so each station's LPA is computed once total
+     instead of once per year.
+  2. Even with (1), `_station_daily_rainfall`'s own `nearest_cell` call
+     was re-scanning the full multi-decade `rain_grid`'s distinct cells
+     on every call — the *same* cell `compute_daily_lpa` had already
+     resolved for that station. Reused the LPA's already-resolved
+     `cell_lat`/`cell_lon` directly instead of a second lookup.
+  - **Measured**: real 31-season `build_burn_sample` run, before/after:
+    **254s → 12s (~21x)**. `BurnStats` output byte-identical before and
+    after (verifies the optimization changed nothing observable, only
+    cost). All 8 golden tests + full `make check` pass unchanged.
+- **M4 is now complete**: both burn (M4.1) and distribution selection
+  (M4.2) have real, persisted, cross-checked results; methods note
+  (`docs/methods/burn_distribution.md`) covers both plus the CRPS-vs-AIC
+  rationale and the ENSO-conditioning honest-underperformance finding.
+- `docs/STATUS.md` updated: M4 row now ✅, F09 now ✅, new M4 detail
+  table, MLflow port quirk documented, "how to resume" now points at M5
+  (C++ simulator — needs a toolchain decision).
+
+---
+
 ## 2026-10-04 — Close the remaining gaps; M4.1 burn analysis on real data
 
 Continuation of the same day, after resolving the backfill/VERIFY/MJO
