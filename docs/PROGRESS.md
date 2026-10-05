@@ -5,6 +5,48 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 10) — M11 parametric cover designer: real case study, caught a degenerate-objective finding on the first run
+
+Continuation of the same day, after M9 was closed out. Picked up M11's
+first half (parametric cover designer, `mq.risk.parametric`).
+
+- **`mq.risk.parametric`**: wet/dry capped-linear payout, `premium =
+  E_Q[payout]*(1+loading)` reusing `mq.mpr.wang.wang_price` directly (a
+  payout is just another sample array to reweight), `optimize_cover`'s
+  grid-search-then-Nelder-Mead-refine over `(trigger, slope, limit)` to
+  minimize basis-failure probability subject to a premium budget —
+  SPEC's own stated method. Built almost entirely on what M4/M6/M9/M10
+  already provide: the loss model reuses M9's `PiecewiseLinearExposure`
+  templates, the joint scenario shape matches M10's
+  `local_index_series` output.
+- **Caught a real finding about the optimization objective on the
+  first real run, not hidden**: with a trigger grid spanning the
+  index's full historical range, the optimizer found `trigger` at the
+  index's lowest observed value — firing in 30 of 31 years, driving
+  basis-failure probability to *exactly* 0 not by tracking real loss
+  events well, but by paying out almost unconditionally. A
+  mathematically legitimate optimum of SPEC's literal stated objective
+  (which doesn't itself reward selective calibration over
+  near-unconditional triggering), not a bug — fixed by restricting the
+  trigger grid to above the index's own historical median, a designer
+  judgment call SPEC doesn't specify where to draw.
+- **Real case study, SPEC's own stated one**: a synthetic Chennai
+  delivery-rider income exposure (explicitly labelled synthetic, same
+  posture as M9's demo), real local rainfall at M10's weakest-
+  correlation cell, real official RAINCHNNAI index. With the corrected
+  trigger grid: basis-failure probability 25.8% (no cover) → 3.2%
+  (optimized cover), premium 200.1 of a 50,000 illustrative budget,
+  firing selectively in 15 of 31 years — a real, substantial, honestly
+  interpretable improvement. Script + log:
+  `.scratch/parametric_demo.py` (gitignored). Full write-up:
+  `docs/methods/parametric.md`.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M11's parametric row and F17
+  now done, new M11 detail table, resume-pointer moved to the scenario
+  lab (`mq.risk.scenarios`) — mostly orchestration of what's already
+  built, not new pricing machinery.
+
+---
+
 ## 2026-10-05 (cont. 9) — M9 hedge optimiser: min-variance + CVaR95, real structural finding confirmed on real data
 
 Continuation of the same day, after M10 was closed out. Picked up M9's

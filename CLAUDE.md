@@ -27,10 +27,15 @@ highest correlation/hedge-effectiveness). M9's hedge optimiser
 (min-variance + CVaR95 via scipy's HiGHS, no cvxpy needed) is built and
 real-run too — found that position limits are load-bearing for the
 CVaR optimizer specifically, since the real RAINCHNNAI index has been
-positive in every one of its 31 historical seasons. M2's NCDEX
+positive in every one of its 31 historical seasons. M11's parametric
+cover designer is built and real-run (SPEC's own stated synthetic
+Chennai delivery-rider case study: basis-failure probability 25.8% →
+3.2%; also caught a real finding that an unconstrained trigger grid
+lets the optimizer find a degenerate near-always-pay cover — not a
+bug, a legitimate optimum of SPEC's literal objective). M2's NCDEX
 bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
 around, documented as policy; it also blocks M6/M8's real calibration.
-M11 (parametric cover designer + scenario lab) is next.
+M11's scenario lab (`mq.risk.scenarios`) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
