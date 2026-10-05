@@ -23,8 +23,7 @@ from datetime import date, timedelta
 import polars as pl
 
 from mq.index.lpa import DailyLPA, compute_daily_lpa, season_lpa_total
-from mq.io.grid import nearest_cell
-from mq.specs.contract import ContractSpec, LPARef, MonthDay
+from mq.specs.contract import ContractSpec, LPARef, MonthDay, StationRef
 from mq.specs.loader import is_draft
 
 
@@ -48,24 +47,44 @@ class IndexPath:
         return self.spot[-1] if self.spot else self.season_lpa_anchor
 
 
-def _station_daily_rainfall(rain_grid: pl.DataFrame, *, lat: float, lon: float) -> pl.DataFrame:
-    """This station's daily rainfall at its nearest grid cell — columns
-    (date, rain_mm). Uses the same nearest-cell logic as the LPA module so
-    both draw from the identical station proxy."""
-    cell_lat, cell_lon = nearest_cell(rain_grid, lat=lat, lon=lon)
+def _station_daily_rainfall_at_cell(
+    rain_grid: pl.DataFrame, *, cell_lat: float, cell_lon: float
+) -> pl.DataFrame:
+    """This station's daily rainfall at an already-resolved grid cell —
+    columns (date, rain_mm). Takes the cell directly rather than a
+    station (lat, lon) + its own `nearest_cell` lookup: the LPA already
+    computed in this same call (see `lpas` below) resolved the identical
+    nearest cell, and re-deriving it here would re-scan all of
+    `rain_grid`'s distinct cells a second time for no different answer."""
     return rain_grid.filter((pl.col("lat") == cell_lat) & (pl.col("lon") == cell_lon)).select(
         "date", "rain_mm"
     )
 
 
-def compute_index(spec: ContractSpec, rain_grid: pl.DataFrame, as_of: date) -> IndexPath:
+def compute_index(
+    spec: ContractSpec,
+    rain_grid: pl.DataFrame,
+    as_of: date,
+    *,
+    lpa_cache: dict[tuple[str, int, int], DailyLPA] | None = None,
+) -> IndexPath:
     """Reconstruct the CDR spot value for every day from the contract's
     period_start through min(as_of, period_end).
 
     Raises ValueError if the spec is still a draft, or if any station is
     missing rainfall data for a date in that window (a silent gap would
     corrupt every subsequent day's cumulative value — fail loudly instead,
-    per SPEC §0.4's no-look-ahead/no-silent-gaps posture)."""
+    per SPEC §0.4's no-look-ahead/no-silent-gaps posture).
+
+    `lpa_cache`: each station's daily LPA depends only on (station,
+    base_period_start_year, base_period_end_year) — not on `as_of` — so a
+    caller making many calls with the same spec (burn analysis: one call
+    per historical season, all sharing one fixed base period) can pass a
+    dict to reuse it instead of recomputing the same ~50-year groupby over
+    the full `rain_grid` on every call. Measured: without this, a 31-call
+    burn-analysis reconstruction took several minutes; with it, the LPA
+    groupby runs once per station instead of once per call. None (the
+    default) preserves the original always-recompute behaviour."""
     if is_draft(spec):
         raise ValueError(f"cannot compute index from a draft spec: {spec.contract_code}")
 
@@ -94,16 +113,24 @@ def compute_index(spec: ContractSpec, rain_grid: pl.DataFrame, as_of: date) -> I
         spec.index.lpa.base_period_end_year,
     )
 
-    lpas: list[DailyLPA] = [
-        compute_daily_lpa(
+    def _lpa_for(st: StationRef) -> DailyLPA:
+        return compute_daily_lpa(
             rain_grid,
             lat=st.lat,
             lon=st.lon,
             base_period_start_year=base_start,
             base_period_end_year=base_end,
         )
-        for st in stations
-    ]
+
+    if lpa_cache is None:
+        lpas: list[DailyLPA] = [_lpa_for(st) for st in stations]
+    else:
+        lpas = []
+        for st in stations:
+            key = (st.station_id, base_start, base_end)
+            if key not in lpa_cache:
+                lpa_cache[key] = _lpa_for(st)
+            lpas.append(lpa_cache[key])
     season_lpa_anchor = sum(
         season_lpa_total(
             lpa,
@@ -146,8 +173,10 @@ def compute_index(spec: ContractSpec, rain_grid: pl.DataFrame, as_of: date) -> I
 
     rain_cols = []
     missing: list[str] = []
-    for i, st in enumerate(stations):
-        st_rain = _station_daily_rainfall(rain_grid, lat=st.lat, lon=st.lon)
+    for i, (st, lpa) in enumerate(zip(stations, lpas, strict=True)):
+        st_rain = _station_daily_rainfall_at_cell(
+            rain_grid, cell_lat=lpa.cell_lat, cell_lon=lpa.cell_lon
+        )
         col_name = f"_rain_{i}"
         rain_cols.append(col_name)
         window_df = window_df.join(st_rain.rename({"rain_mm": col_name}), on="date", how="left")

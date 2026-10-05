@@ -17,6 +17,7 @@ from datetime import date
 import polars as pl
 
 from mq.index.engine import compute_index
+from mq.index.lpa import DailyLPA
 from mq.specs.contract import ContractSpec, MonthDay
 
 
@@ -42,7 +43,13 @@ class BurnStats:
     es_upper_5pct: float  # mean of the best (highest) 5% of outcomes
 
 
-def reconstruct_season(spec: ContractSpec, rain_grid: pl.DataFrame, year: int) -> float | None:
+def reconstruct_season(
+    spec: ContractSpec,
+    rain_grid: pl.DataFrame,
+    year: int,
+    *,
+    lpa_cache: dict[tuple[str, int, int], DailyLPA] | None = None,
+) -> float | None:
     """The final CDR spot value for one historical year's complete season,
     or None if `rain_grid` doesn't fully cover that year's window (reaches
     all the way to period_end) — skipped rather than extrapolated.
@@ -53,12 +60,17 @@ def reconstruct_season(spec: ContractSpec, rain_grid: pl.DataFrame, year: int) -
     every contract year, not something recomputed per observation — using
     it for a 1995 reconstruction mirrors how the real contract actually
     works, where every participant sees the same static LPA regardless of
-    which year they're looking at."""
+    which year they're looking at.
+
+    `lpa_cache`: forwarded to `compute_index` — see its docstring. Lets a
+    caller reconstructing many years (`build_burn_sample`) share one
+    station-LPA computation across all of them instead of recomputing it
+    per year."""
     if not isinstance(spec.index.period_end, MonthDay):
         raise TypeError("expected a resolved period_end")
     full_season_as_of = date(year, spec.index.period_end.month, spec.index.period_end.day)
     try:
-        path = compute_index(spec, rain_grid, as_of=full_season_as_of)
+        path = compute_index(spec, rain_grid, as_of=full_season_as_of, lpa_cache=lpa_cache)
     except ValueError:
         return None  # a data gap anywhere in the season — skip, don't guess
     if not path.dates or path.dates[-1] != full_season_as_of:
@@ -69,11 +81,16 @@ def reconstruct_season(spec: ContractSpec, rain_grid: pl.DataFrame, year: int) -
 def build_burn_sample(spec: ContractSpec, rain_grid: pl.DataFrame, years: list[int]) -> BurnSample:
     """Reconstruct every year in `years` independently; years without full
     season coverage are silently dropped (not every historical year will
-    have complete data — SPEC's own §8.1 backfill expects gaps)."""
+    have complete data — SPEC's own §8.1 backfill expects gaps).
+
+    All years share one `lpa_cache`: every call uses the same contract
+    spec, so the same fixed LPA base period applies to every year — the
+    per-station LPA groupby runs once total instead of once per year."""
+    lpa_cache: dict[tuple[str, int, int], DailyLPA] = {}
     payoffs: list[float] = []
     used_years: list[int] = []
     for year in years:
-        value = reconstruct_season(spec, rain_grid, year)
+        value = reconstruct_season(spec, rain_grid, year, lpa_cache=lpa_cache)
         if value is not None:
             payoffs.append(value)
             used_years.append(year)
