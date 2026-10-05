@@ -5,6 +5,50 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 8) — M10 basis engine: real 12-cell run sanity-confirms the methodology
+
+Continuation of the same day, after M9's Greeks were closed out. Picked
+up M10 (basis engine, `mq.risk.basis`) ahead of M9's hedge optimiser
+half, since SPEC's own hedge-optimiser spec entry names the basis
+engine as a prerequisite for real scenarios.
+
+- **`mq.risk.basis`**: for each candidate grid cell, reconstructs a
+  "local index" via a thin single-station wrapper around
+  `mq.pricing.burn.build_burn_sample` (the exact same, already-tested
+  M4 reconstruction, pointed at one cell instead of the real two
+  stations), pairs it against the real official index, and computes
+  SPEC's six statistics (correlation, RMSE, Kendall τ, empirical
+  upper/lower tail dependence, hedge effectiveness/ratio).
+- **Deliberate double duty**: `hedge_effectiveness`/`hedge_ratio` use
+  exactly the min-variance formula (`h* = Cov(L,X)/Var(X)`) SPEC's
+  `mq.risk.hedge` (M9's other half) needs — this module's (local rain,
+  contract index) year-pairs ARE the "joint scenarios from basis
+  engine" the hedge optimiser's own spec entry names as a prerequisite.
+  Verified SPEC's own hedge-optimiser property tests (zero-correlation
+  exposure → h*≈0, doubling exposure doubles h*) hold here, since it's
+  the identical formula.
+- **Real run, RAINCHNNAI, all 31 seasons, 12 real IMD cells in a
+  ~1°×1° box around the two official stations**: sanity-confirmed
+  before trusting the numbers further — cells nearest meenambakkam and
+  nungambakkam score highest (correlation 0.96+, hedge effectiveness
+  0.92+), exactly what a correct reconstruction should show. Basis risk
+  genuinely, substantially degrades with distance: the box's far corner
+  (~55-65km away) drops to 0.734 correlation and 0.538 hedge
+  effectiveness. Script + log: `.scratch/basis_demo.py` (gitignored).
+  Full write-up: `docs/methods/basis.md`.
+- Honestly scoped out for now: seasonal mismatch (implemented in
+  `compute_basis_stats` but not wired into the per-cell grid loop,
+  needs the official index's real daily series threaded through), and
+  a full city-wide bounding box (the real run used a modest 12-cell box
+  to keep cost reasonable — cost scales linearly with cell count, not a
+  blocker, just not run at full scale yet).
+- `docs/STATUS.md`, `CLAUDE.md` updated: M10 row and F16 now done, new
+  M10 detail table, M9's hedge-optimiser row updated to reflect it's
+  now unblocked (needs a cvxpy/HiGHS dependency decision for the CVaR
+  piece specifically).
+
+---
+
 ## 2026-10-05 (cont. 7) — M9 Greeks: delta/gamma exact by index design; theta meets SE<5% once the C++ core makes enough paths practical
 
 Continuation of the same day, after M8 was closed out. User said
