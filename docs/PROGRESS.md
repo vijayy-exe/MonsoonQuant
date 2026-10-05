@@ -5,6 +5,51 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 5) — M7 forecasting ladder complete: lgbm_q_v1, lgbm_q_cqr_v1; all 5 rungs real-backtested
+
+Continuation of the same day. User approved adding LightGBM (1.5MB
+macOS wheel, core deps already present) after a size check; picked up
+the two remaining forecasting-ladder rungs.
+
+- **`lgbm_q_v1`** (`mq.forecasting.lgbm_quantile`): one LightGBM model
+  per quantile level, monotone rearrangement to fix LightGBM's known
+  quantile-crossing problem. **Had to switch APIs mid-build**: the
+  sklearn-compatible `LGBMRegressor` wrapper turned out to
+  hard-require scikit-learn at import time — an unplanned, much larger
+  dependency the earlier size check never covered. Switched to
+  lightgbm's native `Dataset`/`Booster` API, which needs only the
+  lightgbm package itself.
+- **`lgbm_q_cqr_v1`** (`mq.forecasting.conformal`): split-conformal
+  calibration on top of `lgbm_q_v1`, aimed directly at the
+  under-coverage problem `analog_v1` showed in the earlier backtest.
+  Holds out a whole-season calibration fold, computes each quantile's
+  signed residual on it, and shifts future predictions by the
+  residuals' own empirical quantile — applied to every level in the
+  grid, not just one interval's endpoints.
+- **Promoted a "private" helper to public**: `conformal.py` needed
+  `lgbm_quantile.py`'s inverse-CDF sampling function, which had a
+  leading underscore. Renamed it public (`samples_from_quantile_grid`)
+  rather than reach into another module's internals — a small but
+  real code-quality fix caught before it shipped.
+- **Real walk-forward backtest extended to all 5 built rungs.** Same
+  honest pattern continues: `lgbm_q_v1` (CRPS=194.03, CRPSS=-0.240) and
+  `lgbm_q_cqr_v1` (CRPS=201.92, CRPSS=-0.291) both underperform plain
+  climatology too — every added-complexity rung does, at this sample
+  size. **But the conformal layer's actual job — fixing coverage — is
+  a real, measured success**: `lgbm_q_v1` under-covers badly
+  (33.1%/68.6% vs. 50%/90% nominal, same pattern `analog_v1` showed);
+  `lgbm_q_cqr_v1`'s calibrated coverage (45.5%/86.3%) lands much closer
+  to nominal. Reported as two separate, both-true findings rather than
+  picking one headline number: the mechanism works, it still isn't
+  enough data to beat climatology on CRPS. Script + log:
+  `.scratch/lgbm_backtest.py` (gitignored, real-data-dependent).
+- `docs/STATUS.md`, `CLAUDE.md`, `docs/methods/forecasting.md` updated
+  with the final 5-rung comparison table. **M7 is now fully complete.**
+  Resume-pointer moved to M8 (forecast-conditioned pricing,
+  `mq.pricing.conditioned`).
+
+---
+
 ## 2026-10-05 (cont. 4) — M7 forecasting ladder: clim_v1 extended with enso_clim_v1, analog_v1; real walk-forward backtest
 
 Continuation of the same day, after M6 was closed out. User said

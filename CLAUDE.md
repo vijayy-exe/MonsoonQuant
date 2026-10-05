@@ -4,20 +4,22 @@ Spec: docs/SPEC.md (this master file — copied from the original build spec).
 Read §0 and the current milestone before coding. Status/tracker: docs/STATUS.md.
 
 ## Current milestone
-M0-M5 are done. VERIFY V1-V11 closed from real official NCDEX documents;
+M0-M7 are done. VERIFY V1-V11 closed from real official NCDEX documents;
 both contract specs fully resolved. Real CDR index, burn analysis,
 distribution selection, and a C++ chain-dependent simulator (pybind11 +
 OpenMP + Philox4x32-10, 1M paths in 0.8s, deterministic across thread
 counts, verified against the NumPy reference) are all built, tested, and
 run against real IMD data. M6's Wang/Esscher MPR machinery is built,
 tested, and demoed against real M4 data (illustrative settle only — no
-real settlement data exists yet). M7's clim_v1/enso_clim_v1/analog_v1
-are built and real-backtested (both newer rungs honestly underperform
-climatology at n=31 seasons — reported, not hidden or retuned); the
-LightGBM rungs need a dependency decision, tft_v1 is deliberately
-skipped (documented). M2's NCDEX bhavcopy live fetch stays bot-gated
-(same as MJO/BoM) — not worked around, documented as policy; it also
-blocks M6's real calibration.
+real settlement data exists yet). M7's 5 forecasting rungs
+(clim_v1/enso_clim_v1/analog_v1/lgbm_q_v1/lgbm_q_cqr_v1) are all built
+and real-backtested — every newer rung honestly underperforms
+climatology at n=31 seasons (reported, not hidden or retuned), but
+conformal calibration demonstrably fixes coverage anyway; tft_v1 (P2)
+is deliberately skipped with reasoning on record. M2's NCDEX bhavcopy
+live fetch stays bot-gated (same as MJO/BoM) — not worked around,
+documented as policy; it also blocks M6's real calibration. M8
+(forecast-conditioned pricing) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
