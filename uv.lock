@@ -7,6 +7,12 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+members = [
+    "monsoonquant",
+    "mq-core-sim",
+]
+
 [[package]]
 name = "alembic"
 version = "1.20.0"
@@ -681,6 +687,7 @@ dependencies = [
     { name = "alembic" },
     { name = "imdlib" },
     { name = "mlflow-skinny" },
+    { name = "mq-core-sim" },
     { name = "orjson" },
     { name = "pandera", extra = ["polars"] },
     { name = "polars" },
@@ -699,6 +706,7 @@ dependencies = [
 dev = [
     { name = "hypothesis" },
     { name = "mypy" },
+    { name = "pybind11" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -712,6 +720,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.14" },
     { name = "imdlib", specifier = ">=0.1.22" },
     { name = "mlflow-skinny", specifier = ">=3.16.1" },
+    { name = "mq-core-sim", editable = "core" },
     { name = "orjson", specifier = ">=3.10" },
     { name = "pandera", extras = ["polars"], specifier = ">=0.21" },
     { name = "polars", specifier = ">=1.17" },
@@ -730,6 +739,7 @@ requires-dist = [
 dev = [
     { name = "hypothesis", specifier = ">=6.122" },
     { name = "mypy", specifier = ">=1.13" },
+    { name = "pybind11", specifier = ">=2.13" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.8" },
@@ -737,6 +747,11 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0" },
     { name = "types-requests", specifier = ">=2.33.0.20260906" },
 ]
+
+[[package]]
+name = "mq-core-sim"
+version = "0.1.0"
+source = { editable = "core" }
 
 [[package]]
 name = "mypy"
@@ -1073,6 +1088,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a", size = 181259, upload-time = "2025-03-28T02:41:19.028Z" },
+]
+
+[[package]]
+name = "pybind11"
+version = "3.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/f3/95b0f40b31df41dbfe6bb0857419c9442c15839cbac4796f1c26ae0b6081/pybind11-3.1.0.tar.gz", hash = "sha256:a1cc06b524ab3edca51f8ad3895f9c4fa20b8b19283173dff4ae781449dc9639", size = 603746, upload-time = "2026-08-06T23:33:00.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/fd/8762f7ee3e4e4be6d1d846cffb4916dd9bb02b2f800d3603718a0efe494c/pybind11-3.1.0-py3-none-any.whl", hash = "sha256:b8488090f8acffbcb6b5d6a85571a6827a0a2981ffb75e5a0b27b87c4a6b7dd0", size = 319402, upload-time = "2026-08-06T23:32:59.047Z" },
 ]
 
 [[package]]

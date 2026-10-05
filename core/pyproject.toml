@@ -1,0 +1,13 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mq-core-sim"
+version = "0.1.0"
+description = "C++ chain-dependent rainfall simulator core (SPEC §7.4) — pybind11 extension, built separately from the pure-Python mq package so the main hatchling wheel never needs a C++ compiler."
+requires-python = ">=3.12,<3.13"
+
+[tool.scikit-build]
+cmake.version = ">=3.26"
+wheel.packages = []

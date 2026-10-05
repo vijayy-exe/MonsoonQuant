@@ -23,6 +23,7 @@ dependencies = [
     "requests>=2.34.2",
     "mlflow-skinny>=3.16.1",
     "scoringrules>=0.11.0",
+    "mq-core-sim",
 ]
 
 [project.scripts]
@@ -38,7 +39,20 @@ dev = [
     "types-pyyaml>=6.0",
     "types-requests>=2.33.0.20260906",
     "scipy-stubs>=1.18.1.1",
+    "pybind11>=2.13",
 ]
+
+[tool.uv.workspace]
+# core/ is its own scikit-build-core + pybind11 project (see
+# core/pyproject.toml) — kept separate from this hatchling-built pure-
+# Python package so installing `mq` for analysis-only use never
+# requires a C++ compiler. Wired in as a uv workspace member so
+# `make bootstrap`/`uv sync` builds and installs the compiled
+# extension alongside everything else, same as any other dependency.
+members = ["core"]
+
+[tool.uv.sources]
+mq-core-sim = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -71,8 +85,9 @@ mypy_path = "src"
 exclude = ["^notebooks/", "^research/"]
 
 [[tool.mypy.overrides]]
-# No type stubs published for these packages.
-module = ["imdlib.*", "scoringrules.*"]
+# No type stubs published for these packages. mq_core_sim is our own
+# compiled pybind11 extension (core/) — no .pyi either, same situation.
+module = ["imdlib.*", "scoringrules.*", "mq_core_sim"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
