@@ -23,11 +23,14 @@ a real end-to-end run. M9's Greeks are built (delta/gamma exact by the
 CDR index's own additive structure; theta meets SPEC's SE<5% bar with
 enough paths via the C++ core). M10's basis engine is built and
 real-run (sanity-confirmed: cells nearest the real stations score
-highest correlation/hedge-effectiveness). M2's NCDEX bhavcopy live
-fetch stays bot-gated (same as MJO/BoM) — not worked around,
-documented as policy; it also blocks M6/M8's real calibration. M9's
-hedge optimiser is next (now unblocked by M10; needs a cvxpy/HiGHS
-decision for the CVaR LP piece).
+highest correlation/hedge-effectiveness). M9's hedge optimiser
+(min-variance + CVaR95 via scipy's HiGHS, no cvxpy needed) is built and
+real-run too — found that position limits are load-bearing for the
+CVaR optimizer specifically, since the real RAINCHNNAI index has been
+positive in every one of its 31 historical seasons. M2's NCDEX
+bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
+around, documented as policy; it also blocks M6/M8's real calibration.
+M11 (parametric cover designer + scenario lab) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

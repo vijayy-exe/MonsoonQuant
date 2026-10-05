@@ -5,6 +5,59 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 9) — M9 hedge optimiser: min-variance + CVaR95, real structural finding confirmed on real data
+
+Continuation of the same day, after M10 was closed out. Picked up M9's
+other half (hedge optimiser, `mq.risk.hedge`/`.cvar`), now unblocked by
+M10's basis engine.
+
+- **`mq.risk.hedge`**: min-variance using SPEC's own literal
+  `h*=-Cov(L,X)/Var(X)` formula for position `L+h*X` — deliberately
+  documented as the OPPOSITE sign from `mq.risk.basis`'s own
+  `hedge_ratio` (M10), which reports the same minimum-variance
+  decomposition for `L-h*X` instead. Both correct, different purposes;
+  caught and recorded the discrepancy before it could confuse anyone
+  reading both modules side by side. Exposure templates (SPEC's four
+  named ones) are all `PiecewiseLinearExposure` presets — one generic
+  breakpoints building block covers all of them. `LotConstraints`
+  handles max order lots, position limit, margin budget, max notional,
+  long/short flags.
+- **`mq.risk.cvar`**: the Rockafellar-Uryasev CVaR95 LP, solved via
+  `scipy.optimize.linprog`'s HiGHS backend — the literal solver SPEC
+  names ("cvxpy/HiGHS") — rather than adding `cvxpy` as a new
+  dependency. Integer lots via small-neighborhood enumeration around
+  the continuous optimum (SPEC's own stated MILP alternative),
+  evaluated with the exact empirical CVaR per candidate.
+- **Real structural finding, caught while writing tests, then confirmed
+  on real data**: unlike variance (quadratic, always has an interior
+  minimum), CVaR minimization can be genuinely unbounded when the
+  index's sign never varies across scenarios — an all-positive
+  synthetic test case hit the unconstrained search's boundary instead
+  of any interior optimum. Running the real optimizer against the real
+  RAINCHNNAI index confirmed this isn't just a synthetic-test artifact:
+  the real official burn sample (M4) has been positive in every one of
+  its 31 historical seasons, so the unconstrained CVaR hedge genuinely
+  wants to short without limit for the same reason — **position limits
+  are required for this specific contract's CVaR optimization to be
+  well-posed at all**, not merely a risk-management nicety layered on
+  top.
+- **Real end-to-end run**: real official index, real local rainfall at
+  M10's weakest-correlation cell, an illustrative delivery-rider
+  exposure template (sized only to land in a reportable lots range, not
+  a claim about any real business). Min-variance: -5 lots, 42%
+  variance reduction, basis_contribution≈1.0 (rounding to whole lots
+  costs almost nothing extra here). A smaller illustrative exposure
+  rounds to **zero lots** instead — not a bug, a real position-sizing
+  finding: the real contract's monetary multiplier can be too coarse
+  for a genuinely small exposure to hedge with whole lots at all.
+  Script + log: `.scratch/hedge_demo.py` (gitignored). Full write-up:
+  `docs/methods/hedge.md`.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M9's hedge-optimiser row and
+  F15 now done, M9 detail table updated, resume-pointer moved to M11
+  (parametric cover designer + scenario lab).
+
+---
+
 ## 2026-10-05 (cont. 8) — M10 basis engine: real 12-cell run sanity-confirms the methodology
 
 Continuation of the same day, after M9's Greeks were closed out. Picked
