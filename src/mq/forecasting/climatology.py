@@ -24,7 +24,7 @@ instead of a season's final payoff.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import polars as pl
@@ -103,6 +103,82 @@ def remaining_rain_climatology(
         period_end=date(period_end_year, period_end_month, period_end_day),
         cell_lat=cell_lat,
         cell_lon=cell_lon,
+        n_years=len(samples),
+        quantiles=quantiles,
+        sample_values=samples,
+    )
+
+
+@dataclass(frozen=True)
+class HorizonClimatologyForecast:
+    as_of: date
+    window_end: date
+    n_years: int
+    quantiles: dict[str, float]
+    sample_values: list[float]
+
+
+def remaining_rain_climatology_2station(
+    avg_series: pl.DataFrame,
+    *,
+    as_of: date,
+    period_end_month: int,
+    period_end_day: int,
+    max_horizon_days: int | None = None,
+) -> HorizonClimatologyForecast:
+    """Like `remaining_rain_climatology`, but on an already 2-station-
+    averaged `avg_series` (see `mq.forecasting.features.station_average_daily_series`
+    — M8's forecast-conditioned pricing needs the forecast and the
+    simulator on the same station basis), and with an optional
+    `max_horizon_days` cap: when given, each year's window ends at
+    `min(real period_end, as_of + max_horizon_days)` instead of running
+    all the way to period_end — M8's "forecast quantiles for the next h
+    days" (SPEC §7.7), as opposed to M7's full-remaining-season target.
+
+    Climatology (plain, unconditioned) rather than `enso_clim_v1`/
+    `analog_v1`/an LightGBM rung: M7's own real backtest
+    (docs/methods/forecasting.md) found plain climatology had the best
+    CRPS of all 5 built rungs at this sample size — using it here is the
+    data-driven choice, not an arbitrary default."""
+    years = sorted(avg_series["date"].dt.year().unique().to_list())
+    samples: list[float] = []
+    for year in years:
+        end_year = year if period_end_month >= as_of.month else year + 1
+        try:
+            start = date(year, as_of.month, as_of.day)
+            real_end = date(end_year, period_end_month, period_end_day)
+        except ValueError:
+            continue  # e.g. as_of.day == 29 (Feb) in a non-leap historical year
+        end = (
+            real_end
+            if max_horizon_days is None
+            else min(real_end, start + timedelta(days=max_horizon_days))
+        )
+        window = avg_series.filter((pl.col("date") >= start) & (pl.col("date") <= end))
+        if window.height == 0:
+            continue
+        samples.append(float(window["rain_mm"].sum()))
+
+    if not samples:
+        raise ValueError("no historical years available to build a climatology")
+
+    series = pl.Series(samples)
+    quantiles: dict[str, float] = {}
+    for q in QUANTILE_LEVELS:
+        value = series.quantile(q, interpolation="linear")
+        assert value is not None
+        quantiles[str(q)] = float(value)
+
+    period_end_year = as_of.year if period_end_month >= as_of.month else as_of.year + 1
+    real_period_end = date(period_end_year, period_end_month, period_end_day)
+    window_end = (
+        real_period_end
+        if max_horizon_days is None
+        else min(real_period_end, as_of + timedelta(days=max_horizon_days))
+    )
+    return HorizonClimatologyForecast(
+        as_of=as_of,
+        window_end=window_end,
         n_years=len(samples),
         quantiles=quantiles,
         sample_values=samples,

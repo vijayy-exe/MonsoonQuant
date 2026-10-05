@@ -105,21 +105,27 @@ def lgbm_forecast_samples(
     return samples_from_quantile_grid(quantiles, rng=rng, n_samples=n_samples)
 
 
-def samples_from_quantile_grid(
-    quantiles: dict[float, float], *, rng: np.random.Generator, n_samples: int
-) -> np.ndarray:
-    """Inverse-CDF sampling on the quantile grid, linearly extrapolated
-    past the lowest/highest fitted quantile level using the slope of
-    the two nearest interior points — a standard practical choice when
-    a model's fitted quantiles don't reach all the way to 0/1."""
+def extrapolated_quantile_grid(quantiles: dict[float, float]) -> tuple[list[float], list[float]]:
+    """A quantile dict extended to the open interval [0, 1] by linearly
+    extrapolating past the lowest/highest fitted level using the slope
+    of the two nearest interior points — a standard practical choice
+    when a model's fitted quantiles don't reach all the way to 0/1.
+    Also used by `mq.pricing.conditioned.quantile_map`, which needs the
+    identical grid construction, not just a sample drawn from it."""
     levels = sorted(quantiles)
+    if len(levels) < 2:
+        raise ValueError("need at least 2 quantile levels to extrapolate a grid")
     values = [quantiles[q] for q in levels]
     lo_slope = (values[1] - values[0]) / (levels[1] - levels[0])
     hi_slope = (values[-1] - values[-2]) / (levels[-1] - levels[-2])
     lo_ext = values[0] - lo_slope * levels[0]
     hi_ext = values[-1] + hi_slope * (1.0 - levels[-1])
+    return [0.0, *levels, 1.0], [lo_ext, *values, hi_ext]
 
-    q_levels = np.array([0.0, *levels, 1.0])
-    q_values = np.array([lo_ext, *values, hi_ext])
+
+def samples_from_quantile_grid(
+    quantiles: dict[float, float], *, rng: np.random.Generator, n_samples: int
+) -> np.ndarray:
+    q_levels, q_values = extrapolated_quantile_grid(quantiles)
     u = rng.uniform(0.0, 1.0, size=n_samples)
     return np.asarray(np.interp(u, q_levels, q_values))
