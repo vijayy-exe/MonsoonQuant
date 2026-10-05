@@ -22,7 +22,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 6 | **M6** MPR (finish) · **M7** Forecasting (start) | 🟨 M6's Wang/Esscher/calibration/uncertainty machinery done; real calibration blocked on bhavcopy (same as M2). M7: all 5 built rungs real-backtested | λ series w/ CIs live; walk-forward runs | |
 | 7 | **M7** Forecasting (finish) | ✅ done — 5 rungs built, real walk-forward backtest run, CRPSS reported honestly (negative for all 4 newer rungs; conformal calibration demonstrably fixes coverage regardless). `tft_v1` deliberately skipped (reasoning on record) | CRPSS vs climatology reported | |
 | 8 | Buffer | ⬜ not started | — | |
-| 9 | **M8** Conditioned pricing · **M9** Greeks | ⬜ not started | 4-method comparison daily; Greek SE < 5% | |
+| 9 | **M8** Conditioned pricing · **M9** Greeks | 🟨 M8 done (real end-to-end run, non-monotonic band width confirmed on real data — see M8 detail); M9 not started | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ⬜ not started | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ⬜ not started | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ⬜ not started | contract tests + OpenAPI drift check green | |
@@ -175,6 +175,18 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M8 detail (forecast-conditioned pricing — done, real end-to-end run)
+
+| Item | Status |
+|---|---|
+| `mq.pricing.conditioned.quantile_map`: rank-based CDF matching of simulated near-term totals onto a forecast | ✅ preserves the simulator's path-for-path ordering/autocorrelation while replacing its marginal; hand-computed test |
+| Near-term/remainder split via two `simulate()` calls sharing a seed | ✅ **zero simulator code changes needed** — every RNG draw is a pure function of (seed, path_id, day_index), never of total n_days, so subtracting a short run's terminal deviation from a long run's (same seed/start_date) isolates the remainder exactly. Verified via a law-of-large-numbers check |
+| `remaining_rain_climatology_2station`: `clim_v1`'s 2-station, horizon-capped counterpart | ✅ new function; `clim_v1`'s own single-station function left untouched (ledger-live) |
+| **Real end-to-end run**: real chain model, real LPA, real ONI/DMI, real observed_to_date=815.3mm (2026-10-03) | ✅ **confirms SPEC's own "never assume monotonic shrinking uncertainty" on real data, not just as a caveat**: 90% band width across h=7/14/30/60/89 days = 1171.5/1175.1/1124.6/**1420.4**/1240.4mm — genuinely non-monotonic, with a plausible (not yet verified) late-season ENSO-variance explanation for the h=60 spike. Full write-up: `docs/methods/conditioned.md` |
+| Real λ / Q-measure band | ⬜ blocked on real settlement data (same bhavcopy bot-gate as M6) — mechanically straightforward on top of what's built (`mq.mpr.wang`/`esscher` applied to `result.payoff`), just nothing real to calibrate against yet |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -223,7 +235,7 @@ comments) — that's the main remaining honesty caveat.
 | F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | 🟨 machinery done + tested + demoed on real M4 data with an illustrative settle; real NCDEX calibration blocked (bhavcopy bot-gate) |
 | F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | ✅ done — all 5 rungs built + real-backtested (every newer rung underperforms climatology on CRPS at n=31, honestly reported; conformal calibration fixes analog_v1/lgbm_q_v1's under-coverage even though it doesn't rescue CRPS). `tft_v1` (P2) deliberately skipped, reasoning on record |
-| F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ⬜ |
+| F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ✅ done — quantile-mapped simulator splice, real end-to-end run confirms SPEC's own "never assume monotonic shrinking uncertainty" on real data (band90 1171→1175→1125→**1420**→1240mm across h=7..89 days) |
 | F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ⬜ |
 | F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ⬜ |
 | F16 | Basis-risk engine + heatmap | P1 | M10 | ⬜ |
@@ -304,16 +316,15 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M5, M6, and M7 are all done (M6's real-data application blocked
-on bhavcopy, see M6 detail; M7's `tft_v1` deliberately skipped, see M7
-detail). All 5 built forecasting rungs are real-backtested
-(`docs/methods/forecasting.md` — every newer rung honestly
-underperforms climatology on CRPS at n=31, not hidden or retuned;
-conformal calibration does measurably fix coverage regardless). M8
-(forecast-conditioned pricing, `mq.pricing.conditioned`) is next, or
-address an open blocker above (bhavcopy/MJO bot-gates block the most —
-M2's real market data, M6's real calibration, and M11's research
-outputs all wait on bhavcopy specifically). Worth considering alongside
+Next: M5, M6, M7, and M8 are all done (M6/M8's real-data application
+blocked on bhavcopy, see M6/M8 detail; M7's `tft_v1` deliberately
+skipped, see M7 detail). M8's real end-to-end run confirms SPEC's own
+"never assume monotonic shrinking uncertainty" on real data
+(`docs/methods/conditioned.md`). M9 (Greeks + hedge optimiser,
+`mq.risk`) is next, or address an open blocker above (bhavcopy/MJO
+bot-gates block the most — M2's real market data, M6/M8's real
+calibration, and M11's research outputs all wait on bhavcopy
+specifically). Worth considering alongside
 either: extending the IMD backfill back to 1951 for SPEC's literal
 statistical-holdout window (currently only 1991-2020+2023) — a data
 task, not a code task.

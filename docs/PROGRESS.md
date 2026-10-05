@@ -5,6 +5,54 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont. 6) — M8 forecast-conditioned pricing: real end-to-end run confirms SPEC's own non-monotonic-uncertainty warning
+
+Continuation of the same day, after M7 was closed out. User said
+"continue until session limit hits"; picked up SPEC's M8
+(forecast-conditioned pricing, `mq.pricing.conditioned`).
+
+- **`quantile_map`**: rank-based CDF matching that remaps the
+  simulator's (M5) near-term simulated totals onto a forecast's (M7)
+  marginal distribution while preserving the simulator's path-for-path
+  ordering — the mechanism that lets this module trust the forecast for
+  the near term and the simulator's generative structure (spell
+  lengths, calibrated seasonal variance) for the far term.
+- **No simulator code changes needed for the near-term/remainder
+  split** — a design insight worth recording: every RNG draw in both
+  M5 simulator backends is a pure function of (seed, path_id,
+  day_index), never of total n_days. Running `simulate()` twice with
+  the same seed/start_date — once for n_days=h, once for the full
+  remaining window — gives path-for-path identical first-h-day draws
+  between the two calls, so subtracting isolates the remainder exactly.
+  Verified via a law-of-large-numbers check, not just asserted.
+- **`remaining_rain_climatology_2station`**: `clim_v1`'s 2-station,
+  horizon-capped counterpart, used as the "forecast quantiles for next
+  h days" source. Chose plain climatology deliberately (not
+  `enso_clim_v1`/`analog_v1`/an LightGBM rung) because M7's own real
+  backtest found it had the best CRPS of all 5 built rungs — a
+  data-driven choice referencing this project's own prior real result,
+  not an arbitrary default. `clim_v1`'s existing single-station
+  function was left untouched (ledger-live).
+- **Real end-to-end run**, real chain model, real LPA, real ONI/DMI,
+  real observed_to_date=815.3mm (2026-10-03, from STATUS.md's live
+  state): computed the 90% band width at h=7/14/30/60/89 days =
+  1171.5/1175.1/1124.6/**1420.4**/1240.4mm. **Genuinely non-monotonic**
+  — confirms SPEC's own explicit instruction ("never assume monotonic
+  shrinking uncertainty; plot band width vs time and let data speak")
+  on real data rather than leaving it as an untested caveat. The h=60
+  spike has a plausible explanation (late-season NE monsoon rainfall is
+  where ENSO-linked variability is largest for Chennai) flagged as
+  plausible-not-verified, not overclaimed. Illustrative Wang λ computed
+  at each h too (settle fixed at a hypothetical 950mm throughout, not a
+  real trade — still no real settlement data, same bhavcopy blocker as
+  M6). Script + log: `.scratch/conditioned_demo.py` (gitignored).
+  Full write-up: `docs/methods/conditioned.md`.
+- `docs/STATUS.md`, `CLAUDE.md` updated: M8 row and F13 now done, new
+  M8 detail table, resume-pointer moved to M9 (Greeks + hedge
+  optimiser, `mq.risk`).
+
+---
+
 ## 2026-10-05 (cont. 5) — M7 forecasting ladder complete: lgbm_q_v1, lgbm_q_cqr_v1; all 5 rungs real-backtested
 
 Continuation of the same day. User approved adding LightGBM (1.5MB

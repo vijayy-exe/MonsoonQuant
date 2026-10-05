@@ -4,7 +4,7 @@ Spec: docs/SPEC.md (this master file — copied from the original build spec).
 Read §0 and the current milestone before coding. Status/tracker: docs/STATUS.md.
 
 ## Current milestone
-M0-M7 are done. VERIFY V1-V11 closed from real official NCDEX documents;
+M0-M8 are done. VERIFY V1-V11 closed from real official NCDEX documents;
 both contract specs fully resolved. Real CDR index, burn analysis,
 distribution selection, and a C++ chain-dependent simulator (pybind11 +
 OpenMP + Philox4x32-10, 1M paths in 0.8s, deterministic across thread
@@ -16,10 +16,12 @@ real settlement data exists yet). M7's 5 forecasting rungs
 and real-backtested — every newer rung honestly underperforms
 climatology at n=31 seasons (reported, not hidden or retuned), but
 conformal calibration demonstrably fixes coverage anyway; tft_v1 (P2)
-is deliberately skipped with reasoning on record. M2's NCDEX bhavcopy
-live fetch stays bot-gated (same as MJO/BoM) — not worked around,
-documented as policy; it also blocks M6's real calibration. M8
-(forecast-conditioned pricing) is next.
+is deliberately skipped with reasoning on record. M8's forecast-
+conditioned pricing (quantile-mapped simulator splice) is built and
+confirms SPEC's own "never assume monotonic shrinking uncertainty" on
+a real end-to-end run. M2's NCDEX bhavcopy live fetch stays bot-gated
+(same as MJO/BoM) — not worked around, documented as policy; it also
+blocks M6/M8's real calibration. M9 (Greeks + hedge optimiser) is next.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
