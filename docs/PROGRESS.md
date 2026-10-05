@@ -5,6 +5,71 @@ measured numbers.
 
 ---
 
+## 2026-10-05 (cont.) — M5.1 GLM fitting + M5.2 NumPy reference simulator, overdispersion fix validated on real data
+
+Continuation of the same day, after M4 was closed out. Picked up SPEC's
+M5 (simulator) milestone.
+
+- **Checked the C++ toolchain before deciding how to proceed**: cmake,
+  Apple clang (C++20), and libomp are all *already installed* on this
+  machine (confirmed via `cmake --version`, `clang --version`, `brew
+  list libomp`) — no system-level installs needed for M5.3. Only
+  pybind11 and scikit-build-core (small Python packages) remain to add
+  when M5.3 starts.
+- **M5.1** (`mq.pricing.simulator_glm`): logistic GLMs for the 2-state
+  Markov occurrence chain (p01, p11) and a Gamma log-link GLM for
+  wet-day amount, all on Fourier harmonics of day-of-year + ONI/DMI
+  covariates (MJO still omitted, bot-gate-blocked). Hand-rolled MLE via
+  `scipy.optimize` rather than adding statsmodels/sklearn — consistent
+  with `mq.pricing.distribution`'s existing scipy-direct style, and
+  these are small (<10-parameter) fits. **Real fit**, nungambakkam
+  station, n=11,323 days (1991-2020+2023): both occurrence GLMs and the
+  amount GLM converge; amount shape=0.316 (strongly right-skewed wet-day
+  amounts — expected for rainfall).
+- **M5.2** (`mq.pricing.simulator_ref`): NumPy reference chain-dependent
+  simulator — day-by-day Markov occurrence + Gamma amount draw,
+  accumulating (rain - LPA) deviation exactly the way
+  `mq.index.engine.compute_index` does, so the simulator's output lands
+  on the same CDR-spot scale as the real index.
+- **Overdispersion fix implemented and validated against real data, not
+  just coded**: SPEC flags that chain-dependent models
+  "under-disperse seasonal totals" — rather than take that as given,
+  measured it on the real 31-season single-station history first. A
+  plain simulation (no fix) gives seasonal-total sd=272.5mm against a
+  real historical sd=412.3mm — confirms the literature problem is real
+  on this data, by about 34% too little spread. Added one lognormal
+  multiplier per path on that path's whole-season amount-mean (a
+  season-level random effect, per SPEC's own prescription), with
+  `calibrate_overdispersion_sd()` root-finding (Brent) the multiplier's
+  sd that reproduces a target seasonal-total sd. Calibrated value
+  (sigma=0.336) gives simulated sd=418.5mm — within 2% of the 412.3mm
+  target, comfortably inside SPEC's ±10% acceptance band. Script + full
+  output saved to `.scratch/validate_simulator.py` /
+  `.scratch/validate_simulator.log` (gitignored, real-data-dependent —
+  same pattern as the existing backfill scripts, not a committed test).
+- Unit tests for both modules use synthetic data: property-style
+  coefficient-recovery tests for the GLMs, and degenerate
+  always-wet/always-dry models for exact (non-statistical) simulator
+  correctness checks, plus a same-seed determinism check and a
+  law-of-large-numbers convergence check. All pass; `make check` green
+  throughout.
+- **What M5.3 (C++ core) will need, not yet started**: pybind11 +
+  scikit-build-core wiring (new build-system integration, bigger than
+  anything done so far this project), a from-scratch Philox4x32-10
+  implementation (the published Salmon et al. 2011 constants directly,
+  rather than vendoring the full upstream Random123 header tree — same
+  algorithm, no new external fetch needed), OpenMP parallelism,
+  determinism-across-thread-count tests, parity tests vs. the NumPy
+  reference, and the `make bench` 1M-paths-in-under-10s benchmark.
+  SPEC's own statistical holdout window is 1951-2020; the real backfill
+  only reaches 1991-2020+2023 so far — extending it further back is a
+  data task (same backfill script, more years), not a code task.
+- `docs/STATUS.md` updated: M5 row now 🟨 (M5.1/M5.2 done, M5.3 not
+  started), new M5 detail table with the real overdispersion numbers,
+  "how to resume" now points at M5.3's specific remaining pieces.
+
+---
+
 ## 2026-10-05 — M4.2 distribution selection (real results); M4 complete; LPA/grid-cell perf fix
 
 - **M4.2 distribution fitting + selection, run for real against the full
