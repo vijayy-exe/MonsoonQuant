@@ -24,6 +24,7 @@ dependencies = [
     "mlflow-skinny>=3.16.1",
     "scoringrules>=0.11.0",
     "mq-core-sim",
+    "lightgbm>=4.5",
 ]
 
 [project.scripts]
