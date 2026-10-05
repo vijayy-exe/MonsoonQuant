@@ -21,6 +21,25 @@ multiplier is still shared, since it depends only on (seed, path_id),
 but the day-by-day draws are not identically paired) — reported
 honestly as `pairing="exact"` vs `pairing="partial"` on each result
 rather than claimed uniformly.
+
+**Real finding, not just a theoretical caveat**: on the real RAINCHNNAI
+chain model, delta/gamma's exact CRN pairing trivially satisfies SPEC's
+"SE < 5% of value" bar (delta=1.0 and gamma=0.0 exactly, se=0 — a
+*structural* fact about the CDR index, not an approximation: the index
+is additive in observed_to_date by construction, so its sensitivity to
+a bump there is always exactly 1, and the second derivative always
+exactly 0, regardless of the fitted model). Theta's partial pairing
+needs far more paths to compensate: at n_paths=20,000 it misses the 5%
+bar badly (37-148%); at n_paths=1,000,000 — practical only because the
+C++ core (`mq.pricing.simulator`, used here instead of M8's NumPy
+reference) does that in ~1.7s — `theta_no_rain_day` meets the bar
+(4.6%), but `theta_climatological_day` still doesn't (80%), for a
+well-understood reason rather than a remaining bug: a climatological
+day's deviation is zero-mean by construction, so its *true* theta is
+plausibly exactly zero, and any relative-SE threshold is mathematically
+the wrong lens for a quantity whose null value is zero (SE/value
+diverges as value -> 0 regardless of sample size). Full numbers:
+`docs/methods/greeks.md`.
 """
 
 from __future__ import annotations
@@ -31,9 +50,9 @@ from datetime import date, timedelta
 import numpy as np
 
 from mq.index.lpa import DailyLPA, daily_lpa_lookup
+from mq.pricing.simulator import simulate as simulate_cpp
 from mq.pricing.simulator_glm import ChainModel
 from mq.pricing.simulator_ref import SimRequest
-from mq.pricing.simulator_ref import simulate as simulate_numpy
 
 DEFAULT_BUMP_MM = 10.0
 
@@ -77,7 +96,7 @@ def full_season_payoff(
         covariates=covariates,
         overdispersion_sd=overdispersion_sd,
     )
-    return simulate_numpy(model, daily_lpa, req).terminal_index
+    return simulate_cpp(model, daily_lpa, req).terminal_index
 
 
 def delta(
