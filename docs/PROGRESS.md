@@ -5,6 +5,50 @@ measured numbers.
 
 ---
 
+## 2026-10-08 — M12 API: 5 more endpoints (13/18), RAINCHNNAI registration root-caused and permanently fixed, basis caching
+
+Continuation of M12 (API, SPEC §9). Picked up where the previous
+session left off (8/18 endpoints) and built the five remaining
+real-data-backed GET endpoints.
+
+- **Built `GET /v1/series/{id}/{index,quotes,mpr,forecast,basis}`**,
+  each backed by an already-tested M3/M6/M7/M10 function or table, not
+  a stub. `quotes` and `mpr` legitimately return `200`/empty-list right
+  now (NCDEX bhavcopy stays bot-gated, M2; M6's MPR demo used
+  illustrative settle data only) — reported honestly, not hidden behind
+  a 404 or backfilled with synthetic rows. `forecast` resolves
+  series_id → contract_code via the real `contracts` table (the ledger
+  is keyed by contract, not listed series) and returns real `clim_v1`
+  ledger rows (4 real rows for RAINCHNNAI-OCT26 at write time).
+- **`basis` real finding**: assumed cheap based on M10's methods note
+  ("12 real cells"), which never actually timed the API call. Measured
+  via a live `uvicorn` + `curl` smoke test: the real computation (31-
+  year official burn sample ~8s + `basis_grid`'s per-cell loop ~39s)
+  takes **~48s uncached**. Fixed with a request-hash cache
+  `(series_id, as_of, box_deg)`, the same "cached by request hash"
+  pattern SPEC already prescribes for the heavy POSTs. A test asserts
+  the 2nd identical call is >5x faster than the 1st, not just that both
+  return 200 — proving the cache path actually executes.
+- **RAINCHNNAI registration gap root-caused, not re-patched a 4th
+  time.** This had recurred 3 times across sessions (documented each
+  time in `docs/methods/api.md`), with container uptime ruling out a
+  reset each time. Actual cause found: `tests/integration/
+  test_registry_write.py`'s own (correct, well-written) teardown
+  `DELETE`s every row under `contract_code='RAINCHNNAI'` — including
+  the real standing registration, since this project runs tests
+  against one shared real DB rather than per-test transactions. Fixed
+  with a new idempotent `mq specs seed-registry` CLI command
+  (`src/mq/specs/specs_cli.py`) that re-registers both real contracts'
+  specs + real listed series, wired into `make check` before AND after
+  `pytest` so the DB always starts correct and is always left correct.
+- Integration tests extended for all 5 new endpoints against the real
+  DB/real data (`tests/integration/test_api.py`), full `make check`
+  green (ruff, mypy --strict, pytest), confirmed live via `uvicorn` +
+  `curl` for every new route including the basis cache behavior.
+- `docs/STATUS.md`, `docs/methods/api.md` updated: M12 now 13/18.
+
+---
+
 ## 2026-10-06 — M12 API foundation: 8 of 18 endpoints, two real gaps found and fixed against the real DB
 
 Continuation from the previous day (M0-M11 complete); picked up M12

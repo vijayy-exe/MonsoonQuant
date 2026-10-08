@@ -1,4 +1,4 @@
-.PHONY: bootstrap check test-golden bench ingest reproduce dev down
+.PHONY: bootstrap check seed-registry test-golden bench ingest reproduce dev down
 
 # macOS + uv quirk: `uv run` creates/touches the editable-install .pth file
 # with the UF_HIDDEN flag, which CPython 3.12's site.py silently skips,
@@ -13,11 +13,15 @@ bootstrap:
 	cd web && pnpm install || true
 	uv run pre-commit install
 
-check:
+seed-registry:
+	uv run mq specs seed-registry
+
+check: seed-registry
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run mypy --strict src/mq
 	uv run pytest -q
+	$(MAKE) seed-registry
 
 test-golden:
 	uv run pytest tests/golden -q
