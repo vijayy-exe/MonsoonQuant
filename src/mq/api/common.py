@@ -16,11 +16,19 @@ from sqlalchemy.orm import Session
 
 from mq.api.errors import unknown_series
 from mq.db.models import ContractSpecRow
+from mq.forecasting.features import station_average_daily_series
+from mq.index.lpa import DailyLPA, compute_daily_lpa
 from mq.io.asof import read_as_of
+from mq.pipelines.climate_idx import PARQUET_DIR as CLIMATE_IDX_PARQUET_DIR
 from mq.pipelines.imd import PARQUET_DIR
 from mq.pricing.burn import build_burn_sample
+from mq.pricing.simulator_glm import ChainModel, attach_monthly_covariate, fit_chain_model
 from mq.specs.contract import ContractSpec
 from mq.specs.loader import is_draft
+
+# LPA base period used throughout this project (M3's real CDR index,
+# M11's real scenario-lab run) -- not a new constant for the API layer.
+LPA_BASE_PERIOD = (1991, 2020)
 
 # The real historical/backtest window used throughout this project
 # (M4's burn analysis, M10's basis engine real run, etc.): IMD data is
@@ -67,3 +75,58 @@ def official_index_values(spec: ContractSpec, rain_grid: pl.DataFrame) -> dict[i
     every risk-engine route prices or optimises against."""
     sample = build_burn_sample(spec, rain_grid, BASIS_YEARS)
     return dict(zip(sample.years, sample.payoffs, strict=True))
+
+
+def load_climate_idx(as_of: date) -> pl.DataFrame:
+    """The real ONI/DMI series (`mq.pipelines.climate_idx`), bounded by
+    the as_of-aware `mq.io` layer -- the chain model's two real
+    covariates (M5.1/M5.2)."""
+    return read_as_of(
+        loader=lambda: pl.read_parquet(
+            f"{CLIMATE_IDX_PARQUET_DIR}/**/*.parquet", hive_partitioning=True
+        ),
+        date_col="date",
+        as_of=as_of,
+    )
+
+
+def fit_real_chain_model(
+    spec: ContractSpec, rain_grid: pl.DataFrame, climate_idx: pl.DataFrame
+) -> tuple[ChainModel, DailyLPA, float, float]:
+    """The real M5.1/M5.2 chain-model fit (`fit_chain_model`), on the
+    real station-averaged daily rainfall + real ONI/DMI covariates --
+    the same pipeline `.scratch/scenarios_demo.py`/`greeks_demo.py` each
+    ran ad hoc, factored out once here so routes don't re-derive it.
+    `fit_chain_model` itself is fast (~0.1s, confirmed by timing it
+    directly); the real cost is the daily-series prep (~7s, dominated by
+    the monthly-covariate join) -- see the `scenarios`/`greeks` routes'
+    own model-fit cache for why that cost is paid once per
+    (contract_code, as_of), not once per request.
+
+    Returns `(model, daily_lpa, mean_oni, mean_dmi)` -- the fitted model,
+    the real climatological daily-LPA baseline (needed by every
+    simulate/Greeks call), and the real covariates' own historical means
+    (a defensible default baseline state when a caller doesn't override
+    oni/dmi for a specific scenario)."""
+    if not isinstance(spec.stations, list):
+        raise ValueError(f"{spec.contract_code}: contract spec has no resolved stations")
+    avg_series = station_average_daily_series(rain_grid, spec.stations)
+    daily = attach_monthly_covariate(avg_series, climate_idx, index_name="oni", col_name="oni")
+    daily = attach_monthly_covariate(daily, climate_idx, index_name="dmi", col_name="dmi")
+    model = fit_chain_model(daily, n_harmonics=3, covariate_cols=["oni", "dmi"])
+
+    # compute_daily_lpa looks up the nearest grid cell to (lat, lon) --
+    # the station-averaged series isn't gridded, so it's given a single
+    # synthetic (lat=0, lon=0) cell to make the lookup trivially match,
+    # the same trick `.scratch/scenarios_demo.py` used.
+    avg_grid = avg_series.with_columns(lat=pl.lit(0.0), lon=pl.lit(0.0))
+    daily_lpa = compute_daily_lpa(
+        avg_grid,
+        lat=0.0,
+        lon=0.0,
+        base_period_start_year=LPA_BASE_PERIOD[0],
+        base_period_end_year=LPA_BASE_PERIOD[1],
+    )
+    mean_oni = float(daily.select(pl.col("oni").mean()).item())
+    mean_dmi = float(daily.select(pl.col("dmi").mean()).item())
+    return model, daily_lpa, mean_oni, mean_dmi

@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from mq.api.errors import MqApiError, mq_api_error_handler
-from mq.api.routes import contracts, health, ledger, risk, series
+from mq.api.routes import contracts, health, ledger, risk, scenarios, series
 
 app = FastAPI(
     title="MonsoonQuant API",
@@ -41,3 +41,4 @@ app.include_router(contracts.router)
 app.include_router(series.router)
 app.include_router(ledger.router)
 app.include_router(risk.router)
+app.include_router(scenarios.router)

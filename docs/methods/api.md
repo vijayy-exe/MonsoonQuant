@@ -7,7 +7,7 @@
 A real subset of SPEC's 18 listed `/v1` endpoints — each one backed by
 an already-tested M1-M11 function, not a stub. Confirmed live: ran a
 real `uvicorn` server and curled it (not just FastAPI's in-process
-`TestClient`), and its auto-generated OpenAPI schema lists all 15 routes
+`TestClient`), and its auto-generated OpenAPI schema lists all 16 routes
 correctly.
 
 ## 1. Built
@@ -29,6 +29,7 @@ correctly.
 | GET | `/v1/ledger/verify` | `mq.ledger.verify.verify_chain` directly, no new logic |
 | POST | `/v1/hedge` | M9's real `min_variance_hedge`/`minimize_cvar_hedge`, against a real candidate location's real IMD rainfall and the real official index |
 | POST | `/v1/parametric/design` | M11's real `optimize_cover`, same real location/exposure/index inputs as `hedge` |
+| POST | `/v1/scenarios/run` | M11's real `run_scenario` against a real fitted M5.1/M5.2 chain model |
 
 Response envelope (`data`/`meta` with `as_of`/`data_version`/
 `model_version`/`synthetic`/`disclaimer`) and RFC 9457 `problem+json`
@@ -141,21 +142,46 @@ probability is recomputed independently from its own returned payout
 and compared, raising if they disagree by more than float tolerance.
 Cached by request hash.
 
-## 5. What's not done yet
+## 5. `POST /v1/scenarios/run` — a real pipeline existed; an earlier assessment was wrong
 
-Three of SPEC's 18 listed endpoints:
+This endpoint is the reason §4 of this note (written before it was
+built) said `greeks`/`scenarios/run` needed "a real model-fitting
+pipeline [that] doesn't exist yet" — **that claim was checked by
+reading the source and was wrong**. `mq.pricing.simulator_glm.
+fit_chain_model`, `mq.forecasting.features.station_average_daily_
+series`, and `mq.pricing.simulator_glm.attach_monthly_covariate` are
+already a complete, real, importable pipeline; what was actually
+missing was a function wiring them together outside a one-off
+`.scratch/scenarios_demo.py` script. That function is now
+`mq.api.common.fit_real_chain_model`, timed directly: `fit_chain_model`
+itself is fast (0.08s), the real cost is the daily-covariate-join prep
+(~7s) — ~8s all-in, the same order as `hedge`/`basis`'s real cost, not
+a missing capability.
 
-- `GET /v1/series/{id}/greeks` — unlike the other GETs, there is no
-  `greeks` results table and no reusable "load real data, fit the chain
-  model, compute Greeks" pipeline function; M9's real Greeks run was ad
-  hoc scripting, never turned into production code. A real route here
-  needs that pipeline built first (or a persistence table + a batch job
-  to populate it), not a model fit live inside an HTTP request handler
-  — real remaining work, not a thin route like the others were.
-- `POST /v1/scenarios/run` — needs a request schema plus SPEC's
-  `n_paths` cap and 5s time-box. May hit the same no-reusable-pipeline
-  blocker as `greeks`, since M11's real scenario-lab run also used ad
-  hoc `ChainModel` fitting — not yet checked.
+The route: resolves `observed_to_date` from the real `index_values`
+table when not given explicitly; calibrates `overdispersion_sd` against
+the real official index's own observed season-to-season standard
+deviation (`calibrate_overdispersion_sd`, a real root-find against real
+data) rather than reusing the demo's hardcoded illustrative 0.336;
+resolves `period_end` from the real `contracts` table; enforces SPEC's
+`n_paths` ≤ 200k cap via the request schema itself. Two-tier caching:
+the fitted model (keyed by `contract_code`/`as_of`, since it's identical
+across every shock and every request against the same series/date) and
+the full response (keyed by the complete request hash, SPEC's own
+pattern). A real test confirms delta=1.0/gamma=0 under two different
+ENSO shocks and that the real 2015 Chennai-analog shock pulls the real
+2015 ONI/DMI values.
+
+## 6. What's not done yet
+
+Two of SPEC's 18 listed endpoints:
+
+- `GET /v1/series/{id}/greeks` — no longer blocked by a missing
+  pipeline (see §5's correction: the same `fit_real_chain_model` this
+  endpoint now uses is available). Genuinely remaining: wiring
+  `mq.risk.greeks`'s own delta/gamma/theta calls onto that pipeline,
+  plus its own request/cache shape — real work, just not a blocked
+  capability anymore.
 - `GET /v1/track-record`, `/v1/lineage` — not started.
 
 Also not done: Pydantic schema exports for OpenAPI→TS generation

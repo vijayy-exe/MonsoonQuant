@@ -5,6 +5,53 @@ measured numbers.
 
 ---
 
+## 2026-10-08 (cont. 3) — M12 API: POST /v1/scenarios/run (16/18), corrected a wrong earlier claim
+
+Continuation of the same day's M12 work (15/18 → 16/18).
+
+- **Self-correction, found while actually checking instead of assuming**:
+  earlier STATUS.md/api.md entries claimed `greeks`/`scenarios/run`
+  needed "a real model-fitting pipeline [that] doesn't exist yet."
+  Before writing that off as blocked a second time, read
+  `mq.pricing.simulator_glm.fit_chain_model`'s actual source and timed
+  it directly: `fit_chain_model` itself takes 0.08s; the real cost is
+  the daily-covariate-join prep (~7s) it depends on
+  (`station_average_daily_series` + `attach_monthly_covariate`) — ~8s
+  all-in, the same order of cost as `hedge`/`basis`, not a missing
+  capability. The pipeline existed; it had just never been wired
+  together outside a one-off `.scratch/scenarios_demo.py` script.
+- **Built `mq.api.common.fit_real_chain_model`** — that missing wiring,
+  factored out once (returns the fitted model, the real DailyLPA
+  baseline, and the real ONI/DMI historical means).
+- **Built `POST /v1/scenarios/run`** (`src/mq/api/routes/scenarios.py`,
+  new file): M11's real `run_scenario` against the real fitted model.
+  Real `observed_to_date` default pulled from the real `index_values`
+  table (not required from the caller). Real `overdispersion_sd`
+  calibrated against the real official index's own observed sd via
+  `calibrate_overdispersion_sd` (a real Brent root-find against real
+  data) — not the demo's hardcoded illustrative 0.336. `period_end`
+  resolved from the real `contracts` table. SPEC's `n_paths` ≤ 200k cap
+  enforced directly in the request schema.
+- **Two-tier caching**: a model-fit cache keyed by (contract_code,
+  as_of) — the fitted model is identical across every shock and every
+  request against the same series/date, confirmed the dominant cost is
+  paid once, not per-shock or per-request (measured: ~14.5s uncached,
+  ~0.02s on a full-response cache hit, >700x). Plus the standard
+  full-response cache by request hash (SPEC's pattern).
+- Real test confirms delta=1.0/gamma=0 holds under two different ENSO
+  shocks (the same structural CDR-index finding M9/M11 already
+  documented, now reproduced live through two independent shocks in one
+  test) and that the real 2015 Chennai-floods-analog shock pulls the
+  real 2015 ONI/DMI values from `climate_idx`, not an illustrative
+  override.
+- Full `make check` green; 26 integration tests now (was 20); confirmed
+  live via `uvicorn` + the real OpenAPI schema (16 routes).
+- Corrected `docs/STATUS.md`/`docs/methods/api.md`'s stale "greeks is
+  blocked" framing to reflect the real finding: greeks is no longer
+  blocked by a missing pipeline, just not yet wired to its own route.
+
+---
+
 ## 2026-10-08 (cont. 2) — M12 API: POST /v1/parametric/design (15/18)
 
 Continuation of the same day's M12 work (14/18 → 15/18).

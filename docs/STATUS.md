@@ -25,7 +25,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ✅ M8 done (see M8 detail); M9 Greeks done (delta/gamma exact, theta meets SE<5% with enough paths — see M9 detail) | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
-| 12 | **M12** API hardening · live eval | 🟨 15 of 18 endpoints built + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
+| 12 | **M12** API hardening · live eval | 🟨 16 of 18 endpoints built + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
@@ -226,7 +226,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M12 detail (API — 15 of 18 endpoints built)
+## M12 detail (API — 16 of 18 endpoints built)
 
 | Item | Status |
 |---|---|
@@ -243,9 +243,9 @@ comments) — that's the main remaining honesty caveat.
 | **Confirmed live**, not just `TestClient` | ✅ ran a real `uvicorn` server, curled every new endpoint including `basis`'s cache behavior |
 | **Real findings caught against the real DB, not fixtures**: (a) `valuations/compare`'s original same-day join would have silently dropped a method; (b) RAINCHNNAI's listed series kept going missing from `contracts`/`contract_specs` — recurred a 3rd time, finally root-caused: `tests/integration/test_registry_write.py` legitimately `DELETE`s rows under `contract_code='RAINCHNNAI'` as its own teardown, and nothing had ever made re-registration a repeatable setup step, so the real registration silently stayed gone after any test run that touched it; (c) `basis` measured ~48s uncached, not actually "well within a GET's latency budget" as an earlier draft assumed | ✅ (a) each method's own latest row; (b) new idempotent `mq specs seed-registry` CLI command (src/mq/specs/specs_cli.py), wired into `make check` both before and after the test suite so the DB is always left correct; (c) request-hash cache. Full write-up: `docs/methods/api.md` |
 | `POST /v1/hedge` | ✅ real M9 min-variance + CVaR95 optimisers against a real candidate location's real IMD rainfall and the real official index; cached by request hash; a real test reproduces `docs/methods/hedge.md`'s documented degenerate-CVaR finding live (unconstrained request hits the 10,000-lot fallback, not an interior optimum) and confirms `constraints` fixes it |
-| `GET /v1/series/{id}/greeks` | ⬜ no persistence table and no reusable model-fitting pipeline function exists yet (M9's real run was ad hoc scripting) — a real route needs that built first, not a live per-request model fit; real remaining work, not a trivial route |
+| `GET /v1/series/{id}/greeks` | ⬜ **correction**: the earlier "no reusable model-fitting pipeline" claim here was wrong — building `scenarios/run` proved `fit_chain_model`/`station_average_daily_series`/`attach_monthly_covariate` already are a real, fast (~8s), reusable pipeline (now `mq.api.common.fit_real_chain_model`). Genuinely remaining: wiring Greeks' own bump-and-reprice calls (`mq.risk.greeks`) onto that pipeline + its own request/cache shape — same tractability as `scenarios/run`, just not built yet |
 | `POST /v1/parametric/design` | ✅ real M11 `optimize_cover` (grid search + Nelder-Mead) against a real candidate location's real loss sample and the real official index, same case-study shape as `docs/methods/parametric.md`; cached by request hash; defaults `trigger_grid` to median-to-max of the real index (the real finding's own restriction) |
-| `POST /v1/scenarios/run` | ⬜ needs request schema + SPEC's `n_paths` cap/5s time-box; may hit the same no-reusable-pipeline blocker as `greeks` since M11's real scenario-lab run also used ad hoc `ChainModel` fitting — not yet checked |
+| `POST /v1/scenarios/run` | ✅ real M11 scenario lab against a real fitted chain model (M5.1/M5.2's `fit_chain_model`, confirmed fast — 0.08s — once `mq.api.common.fit_real_chain_model` wired the real pipeline together); real `observed_to_date` default pulled from `index_values`; real `overdispersion_sd` calibrated against the real official index's own sd (not the demo's hardcoded 0.336); real 2015 Chennai-analog test confirms delta=1.0/gamma=0 under every shock, matching M11's own finding; `n_paths` capped at 200k per SPEC; two-tier cache (fitted model per contract/as_of + full response per request hash) |
 | `GET /v1/track-record`, `/v1/lineage` | ⬜ not started |
 | OpenAPI export to a file, TS codegen, rate limiting, caching, CORS to a real origin | ⬜ not started — the file-export path (`web/lib/api/openapi.json`) deliberately not created ahead of M13's own `web/` scaffold |
 
@@ -305,7 +305,7 @@ comments) — that's the main remaining honesty caveat.
 | F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
 | F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
-| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | 🟨 15 of 18 endpoints built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design), real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
+| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | 🟨 16 of 18 endpoints built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run), real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
 | F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
 | F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
 | F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ |
@@ -380,17 +380,20 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M11 are all done. M12 (API) is in progress: 15 of 18 endpoints
+Next: M0-M11 are all done. M12 (API) is in progress: 16 of 18 endpoints
 built (health/contracts/series-valuation/index/quotes/mpr/forecast/
-basis/ledger/hedge/parametric-design), real envelope + RFC9457 errors,
-confirmed via a real uvicorn run, real integration tests against the
-real DB (which also surfaced and fixed several genuine data/design/
-reliability gaps — see M12 detail, `docs/methods/api.md` — including a
-now-permanent fix for RAINCHNNAI's registration repeatedly going
-missing: `mq specs seed-registry` (`make seed-registry`), wired into
-`make check` itself). Remaining for M12: greeks (needs a real
-model-fitting pipeline first, not just a route), scenarios/run (may hit
-the same no-pipeline blocker as greeks, not yet checked), and
+basis/ledger/hedge/parametric-design/scenarios-run), real envelope +
+RFC9457 errors, confirmed via a real uvicorn run, real integration
+tests against the real DB (which also surfaced and fixed several
+genuine data/design/reliability gaps — see M12 detail,
+`docs/methods/api.md` — including a now-permanent fix for RAINCHNNAI's
+registration repeatedly going missing: `mq specs seed-registry` (`make
+seed-registry`), wired into `make check` itself, and a correction to an
+earlier wrong claim that no reusable model-fitting pipeline existed —
+it does, `mq.api.common.fit_real_chain_model` now wires it together,
+which is what made `scenarios/run` tractable). Remaining for M12:
+greeks (same real pipeline `scenarios/run` now uses, just needs its own
+route/request shape wired on top — no longer blocked) and
 track-record/lineage. M6/M8's real-data
 application stays blocked on bhavcopy (see M6/M8 detail); M7's
 `tft_v1` deliberately skipped (see M7 detail). Or address an open

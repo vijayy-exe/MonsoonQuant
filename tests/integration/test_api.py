@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from mq.api.main import app
@@ -345,6 +346,80 @@ def test_post_parametric_design_caches_by_request_hash() -> None:
 
     t0 = time.time()
     resp2 = client.post("/v1/parametric/design", json=body)
+    second_s = time.time() - t0
+    assert resp2.status_code == 200
+    assert resp2.json()["data"] == resp1.json()["data"]
+    assert second_s < max(0.5, first_s / 3)
+
+
+def test_post_scenarios_run_returns_real_structural_delta_gamma() -> None:
+    """Real M11 scenario lab against a real fitted chain model (M5.1/
+    M5.2) and the real official index's own observed_to_date (pulled
+    from index_values, not supplied). Delta=1.0/gamma=0 is the same
+    real structural finding M9/M11 already documented -- the CDR index
+    is additive in observed_to_date by construction, so this must hold
+    under every shock, not just a specific one."""
+    resp = client.post(
+        "/v1/scenarios/run",
+        json={"series_id": "RAINCHNNAI-OCT26", "shocks": ["el_nino", "la_nina"], "n_paths": 5000},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["series_id"] == "RAINCHNNAI-OCT26"
+    assert data["observed_to_date"] > 0  # pulled from the real index_values table
+    assert len(data["results"]) == 2
+    for r in data["results"]:
+        assert r["greeks"]["delta"] == pytest.approx(1.0, abs=1e-6)
+        assert r["greeks"]["gamma"] == pytest.approx(0.0, abs=1e-9)
+        assert (
+            r["valuations"]["simulator_p5"]
+            < r["valuations"]["simulator_mean"]
+            < r["valuations"]["simulator_p95"]
+        )
+
+
+def test_post_scenarios_run_historical_analog_uses_real_2015_oni_dmi() -> None:
+    """SPEC's own real 2015 Chennai-floods analog -- a real historical
+    year's ONI/DMI, not an illustrative override."""
+    resp = client.post(
+        "/v1/scenarios/run",
+        json={
+            "series_id": "RAINCHNNAI-OCT26",
+            "shocks": [],
+            "historical_analog_years": [2015],
+            "n_paths": 5000,
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["data"]["results"]
+    assert len(results) == 1
+    assert "2015" in results[0]["name"]
+    assert "2015" in results[0]["description"]
+
+
+def test_post_scenarios_run_unknown_series_is_404() -> None:
+    resp = client.post("/v1/scenarios/run", json={"series_id": "NOPE-JAN99", "n_paths": 5000})
+    assert resp.status_code == 404
+    assert resp.json()["type"] == "mq/unknown-series"
+
+
+def test_post_scenarios_run_rejects_n_paths_above_spec_cap() -> None:
+    resp = client.post(
+        "/v1/scenarios/run",
+        json={"series_id": "RAINCHNNAI-OCT26", "n_paths": 200_001},
+    )
+    assert resp.status_code == 422
+
+
+def test_post_scenarios_run_caches_by_request_hash() -> None:
+    body = {"series_id": "RAINCHNNAI-OCT26", "shocks": ["cloudburst"], "n_paths": 5000}
+    t0 = time.time()
+    resp1 = client.post("/v1/scenarios/run", json=body)
+    first_s = time.time() - t0
+    assert resp1.status_code == 200
+
+    t0 = time.time()
+    resp2 = client.post("/v1/scenarios/run", json=body)
     second_s = time.time() - t0
     assert resp2.status_code == 200
     assert resp2.json()["data"] == resp1.json()["data"]
