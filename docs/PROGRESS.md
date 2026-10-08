@@ -5,6 +5,41 @@ measured numbers.
 
 ---
 
+## 2026-10-08 (cont.) — M12 API: POST /v1/hedge (14/18), real degenerate-CVaR finding reproduced live
+
+Continuation of the same day's M12 work (13/18 → 14/18).
+
+- **Built `POST /v1/hedge`** (`src/mq/api/routes/risk.py`, new file):
+  M9's real `min_variance_hedge`/`minimize_cvar_hedge` run against a
+  real candidate location's real IMD rainfall (`mq.risk.basis.
+  local_index_series`) and the real official contract index — not
+  synthetic scenario arrays. Request: location, one of SPEC's 4 named
+  exposure templates, optional lot constraints/alpha/multiplier.
+  Cached by request hash, same pattern as `basis`.
+- **Extracted `src/mq/api/common.py`**: `basis`, and now `hedge`, both
+  start from "load resolved spec, load real rain grid, build the real
+  official index" — factored out once rather than copy-pasted a third
+  time (small refactor, committed separately).
+- **Real finding reproduced live, not just in a script**: calling
+  `/v1/hedge` with no `constraints` hits the exact degenerate-CVaR case
+  `docs/methods/hedge.md` already documented from M9's own real run —
+  the real RAINCHNNAI index is positive in all 31 historical seasons,
+  so an unconstrained CVaR95 LP has no interior optimum and lands at
+  `LotConstraints`' own 10,000-lot fallback with an extreme CVaR
+  figure. A test asserts this happens unconstrained and that passing
+  `constraints` (e.g. `max_order_lots=20`) avoids it — confirming the
+  API faithfully carries the real math through, not sanitized.
+- Checked `mq.risk.parametric` before committing to it as "next":
+  confirmed by reading the source that `optimize_cover` also operates
+  on real historical scenario arrays (no simulator/model-fit needed),
+  so `POST /v1/parametric/design` should be tractable the same way —
+  queued as the next endpoint. `scenarios/run` flagged as possibly
+  needing the same real-pipeline work `greeks` does (not yet checked).
+- Full `make check` green; 17 integration tests now (was 12), including
+  3 new real-DB hedge tests; confirmed live via `uvicorn` + `curl`.
+
+---
+
 ## 2026-10-08 — M12 API: 5 more endpoints (13/18), RAINCHNNAI registration root-caused and permanently fixed, basis caching
 
 Continuation of M12 (API, SPEC §9). Picked up where the previous

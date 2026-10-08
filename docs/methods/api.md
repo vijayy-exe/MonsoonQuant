@@ -7,7 +7,7 @@
 A real subset of SPEC's 18 listed `/v1` endpoints — each one backed by
 an already-tested M1-M11 function, not a stub. Confirmed live: ran a
 real `uvicorn` server and curled it (not just FastAPI's in-process
-`TestClient`), and its auto-generated OpenAPI schema lists all 13 routes
+`TestClient`), and its auto-generated OpenAPI schema lists all 14 routes
 correctly.
 
 ## 1. Built
@@ -27,6 +27,7 @@ correctly.
 | GET | `/v1/series/{id}/basis` | a real, on-demand M10 basis-engine run — not a stored table |
 | GET | `/v1/ledger` | the real `prediction_ledger` table |
 | GET | `/v1/ledger/verify` | `mq.ledger.verify.verify_chain` directly, no new logic |
+| POST | `/v1/hedge` | M9's real `min_variance_hedge`/`minimize_cvar_hedge`, against a real candidate location's real IMD rainfall and the real official index |
 
 Response envelope (`data`/`meta` with `as_of`/`data_version`/
 `model_version`/`synthetic`/`disclaimer`) and RFC 9457 `problem+json`
@@ -97,9 +98,33 @@ dict cache doesn't share across multiple worker processes; a real
 multi-worker deployment needs a shared cache (Redis, a DB table)
 instead — noted here rather than silently assumed fine.
 
-## 3. What's not done yet
+## 3. `POST /v1/hedge` — real optimiser, including a real degenerate-case reproduction
 
-Five of SPEC's 18 listed endpoints:
+Request: `series_id`, a candidate `location_lat`/`location_lon`, one of
+SPEC's four named exposure templates (+ optional kwargs), optional
+`constraints` (mirrors `LotConstraints`), `alpha` (CVaR confidence),
+optional `multiplier` (defaults to the contract spec's own resolved
+value) and `as_of`. Computes the real official index (shared helper,
+§2's `basis` pattern) and the real local CDR reconstruction at the
+candidate location (`mq.risk.basis.local_index_series`), runs the
+exposure template on the shifted-non-negative local values (the same
+"illustrative simplification, stated as such" pattern
+`.scratch/hedge_demo.py` and `docs/methods/hedge.md` already used), then
+both real optimisers. Cached by request hash.
+
+**Confirmed live that the API reproduces `docs/methods/hedge.md`'s own
+documented structural finding, not just in a script.** Calling
+`/v1/hedge` with no `constraints` lands `cvar95` at `LotConstraints`'
+own 10,000-lot fallback with an extreme CVaR figure — the real,
+mathematically correct answer when the real RAINCHNNAI index (positive
+in all 31 historical seasons) gives the CVaR95 LP no interior optimum
+to converge to. The endpoint does not sanitize or cap this; a test
+asserts it happens, and a second test confirms passing `constraints`
+(e.g. `max_order_lots`) avoids it.
+
+## 4. What's not done yet
+
+Four of SPEC's 18 listed endpoints:
 
 - `GET /v1/series/{id}/greeks` — unlike the other GETs, there is no
   `greeks` results table and no reusable "load real data, fit the chain
@@ -108,9 +133,14 @@ Five of SPEC's 18 listed endpoints:
   needs that pipeline built first (or a persistence table + a batch job
   to populate it), not a model fit live inside an HTTP request handler
   — real remaining work, not a thin route like the others were.
-- `POST /v1/hedge`, `/v1/parametric/design`, `/v1/scenarios/run` — need
-  request schemas plus SPEC's `n_paths` cap and 5s time-box; underlying
-  functions exist (M9, M11).
+- `POST /v1/parametric/design`, `/v1/scenarios/run` — need request
+  schemas plus SPEC's `n_paths` cap and 5s time-box. `parametric/design`
+  is tractable the same way `hedge` was (`mq.risk.parametric` also
+  operates on real historical scenario arrays, no simulator/model-fit
+  needed — confirmed by reading its source, not assumed). `scenarios/run`
+  may hit the same no-reusable-pipeline blocker as `greeks`, since M11's
+  real scenario-lab run also used ad hoc `ChainModel` fitting — not yet
+  checked.
 - `GET /v1/track-record`, `/v1/lineage` — not started.
 
 Also not done: Pydantic schema exports for OpenAPI→TS generation

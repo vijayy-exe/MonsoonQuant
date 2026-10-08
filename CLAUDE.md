@@ -37,18 +37,22 @@ lab is built and real-run too (8 scenarios incl. a real 2015 historical
 analog; delta=1.0/gamma≈0 confirmed across every shock). M2's NCDEX
 bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
 around, documented as policy; it also blocks M6/M8's real calibration.
-M0-M11 are all done. M12 (API) is in progress: 13 of 18 endpoints built
+M0-M11 are all done. M12 (API) is in progress: 14 of 18 endpoints built
 (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/
-ledger), confirmed via a real uvicorn run and real integration tests
-against the real DB, which also surfaced and fixed several genuine
-gaps — a valuations/compare join that would've silently dropped a
-method, basis's ~48s uncached latency (fixed with a request-hash
-cache), and RAINCHNNAI's listed series repeatedly going missing from
-the contracts table, finally root-caused (a test's own real teardown
-deleting the shared real registration) and fixed permanently with an
-idempotent `mq specs seed-registry` command wired into `make check`.
-Remaining: greeks (needs a real model-fitting pipeline first), the 3
-heavy POSTs, track-record/lineage.
+ledger/hedge), confirmed via a real uvicorn run and real integration
+tests against the real DB, which also surfaced and fixed several
+genuine gaps — a valuations/compare join that would've silently dropped
+a method, basis's ~48s uncached latency (fixed with a request-hash
+cache), RAINCHNNAI's listed series repeatedly going missing from the
+contracts table (root-caused: a test's own real teardown deleting the
+shared real registration; fixed permanently with an idempotent `mq
+specs seed-registry` command wired into `make check`), and a real
+degenerate-CVaR hedge case (unconstrained `/v1/hedge` genuinely hits
+the 10,000-lot fallback, reproducing `docs/methods/hedge.md`'s own
+finding live, not sanitized). Remaining: greeks (needs a real
+model-fitting pipeline first), parametric/design (next — confirmed
+tractable the same way hedge was) and scenarios/run (may need the same
+pipeline work as greeks), track-record/lineage.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

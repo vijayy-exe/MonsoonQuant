@@ -186,3 +186,99 @@ def test_get_basis_returns_real_geojson_grid_and_caches_by_request() -> None:
     assert resp2.status_code == 200
     assert resp2.json()["data"] == geojson
     assert second_call_s < max(1.0, first_call_s / 5)
+
+
+def test_post_hedge_returns_real_min_variance_and_cvar95() -> None:
+    """Real M9 optimisers against a real candidate location's real IMD
+    rainfall and the real RAINCHNNAI official index -- the same
+    (lat,lon) and exposure shape as docs/methods/hedge.md's real run."""
+    resp = client.post(
+        "/v1/hedge",
+        json={
+            "series_id": "RAINCHNNAI-OCT26",
+            "location_lat": 13.50,
+            "location_lon": 79.75,
+            "exposure_template": "delivery_rider",
+            "template_params": {
+                "dry_threshold_mm": 600.0,
+                "saturation_mm": 1200.0,
+                "max_loss": 500_000.0,
+            },
+            "constraints": {
+                "max_order_lots": 20,
+                "margin_budget": 100_000.0,
+                "margin_per_lot": 2_000.0,
+            },
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["series_id"] == "RAINCHNNAI-OCT26"
+    assert data["n_years"] >= 2
+    assert isinstance(data["min_variance"]["lots"], int)
+    assert isinstance(data["cvar95"]["lots"], int)
+    assert data["min_variance"]["do_nothing_variance"] >= 0
+    assert (
+        data["cvar95"]["var_95"] <= data["cvar95"]["cvar_95"] + 1e-6
+    )  # CVaR >= VaR by construction
+
+
+def test_post_hedge_unknown_series_is_404() -> None:
+    resp = client.post(
+        "/v1/hedge",
+        json={"series_id": "NOPE-JAN99", "location_lat": 13.0, "location_lon": 80.0},
+    )
+    assert resp.status_code == 404
+    assert resp.json()["type"] == "mq/unknown-series"
+
+
+def test_post_hedge_unconstrained_hits_the_documented_degenerate_cvar_case() -> None:
+    """Real finding (docs/methods/hedge.md): the real RAINCHNNAI index
+    is positive in all 31 historical seasons, so an unconstrained
+    CVaR95 minimization has no interior optimum -- it wants to short
+    without limit, landing at LotConstraints' own 10,000-lot fallback.
+    The API must reproduce this real behavior, not mask it."""
+    resp = client.post(
+        "/v1/hedge",
+        json={"series_id": "RAINCHNNAI-OCT26", "location_lat": 13.25, "location_lon": 80.0},
+    )
+    assert resp.status_code == 200
+    cvar95 = resp.json()["data"]["cvar95"]
+    assert (
+        abs(cvar95["lots"]) == 10_000
+    )  # hit the unconstrained fallback cap, not an interior optimum
+
+
+def test_post_hedge_with_constraints_avoids_the_degenerate_case() -> None:
+    resp = client.post(
+        "/v1/hedge",
+        json={
+            "series_id": "RAINCHNNAI-OCT26",
+            "location_lat": 13.25,
+            "location_lon": 80.0,
+            "constraints": {"max_order_lots": 20},
+        },
+    )
+    assert resp.status_code == 200
+    cvar95 = resp.json()["data"]["cvar95"]
+    assert abs(cvar95["lots"]) <= 20
+
+
+def test_post_hedge_caches_by_request_hash() -> None:
+    body = {
+        "series_id": "RAINCHNNAI-OCT26",
+        "location_lat": 13.25,
+        "location_lon": 80.25,
+        "exposure_template": "crop_yield",
+    }
+    t0 = time.time()
+    resp1 = client.post("/v1/hedge", json=body)
+    first_s = time.time() - t0
+    assert resp1.status_code == 200
+
+    t0 = time.time()
+    resp2 = client.post("/v1/hedge", json=body)
+    second_s = time.time() - t0
+    assert resp2.status_code == 200
+    assert resp2.json()["data"] == resp1.json()["data"]
+    assert second_s < max(0.5, first_s / 3)
