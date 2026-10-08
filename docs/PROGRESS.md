@@ -5,6 +5,49 @@ measured numbers.
 
 ---
 
+## 2026-10-09 — M12 API: GET /v1/track-record (17 of 18 SPEC rows; corrected the running count)
+
+Continuation of M12. Also fixes a real counting error: SPEC's table
+lists `/v1/health` + `/v1/health/data` as ONE row (18 rows total), but
+this project's own running tally had been counting them as 2 separate
+endpoints since the first M12 session -- meaning every "N of 18"
+figure reported this far was off by one. Caught while about to write
+"18 of 18" for a milestone that still had `lineage` left to build.
+Corrected throughout `docs/STATUS.md`/`docs/methods/api.md`/
+`CLAUDE.md`: 18 real routes now exist, which is 17 of SPEC's 18 table
+rows -- only `lineage` remains.
+
+- **Built `GET /v1/track-record`** (`src/mq/api/routes/track_record.py`,
+  new file): a real, on-demand re-run of M7's 5-rung walk-forward
+  backtest (`clim_baseline`, `enso_clim_v1`, `analog_v1`, `lgbm_q_v1`,
+  `lgbm_q_cqr_v1`), against real IMD rainfall + real ONI/DMI -- not a
+  stored snapshot (no `model_runs` row exists for this; re-running live
+  is also the more honest design, since a track-record endpoint should
+  reflect current real data).
+- **Confirmed tractable before committing to the design**, same
+  discipline as `scenarios/run`: timed the real `.scratch/
+  forecasting_backtest.py` (~17s) and `.scratch/lgbm_backtest.py`
+  (~29s) scripts directly. Combined cost in the route: ~38-47s
+  uncached, same order as `basis`'s real ~48s -- cached by
+  `(contract_code, as_of)`.
+- **Reproduces M7's exact real numbers, confirmed by a test**: live
+  `mean_crps=156.44` for `clim_baseline`, matching both the original
+  real backtest run and two independent fresh re-runs of the
+  `.scratch` scripts this session (bit-for-bit on the headline number).
+  Test also asserts M7's own honestly-reported finding still holds:
+  every newer rung underperforms climatology (negative CRPSS) at n=31
+  seasons -- not hidden or retuned to look better.
+- `contract_code` query param defaults to `RAINCHNNAI` (the only
+  contract with real forecasting-ladder training-row history --
+  RAINMUMBAI's 2026 season is closed).
+- 1 new real-DB integration test (genuinely slow, ~40-80s combined for
+  both calls -- the point of the endpoint); full `make check` green, 30
+  integration tests total; confirmed live via `uvicorn` (18 real
+  routes in the OpenAPI schema).
+- **M12 is now 17 of 18 SPEC rows -- only `lineage` remains.**
+
+---
+
 ## 2026-10-08 (cont. 4) — M12 API: GET /v1/series/{id}/greeks (17/18)
 
 Continuation of the same day's M12 work (16/18 → 17/18) — the last

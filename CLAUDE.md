@@ -37,18 +37,23 @@ lab is built and real-run too (8 scenarios incl. a real 2015 historical
 analog; delta=1.0/gamma≈0 confirmed across every shock). M2's NCDEX
 bhavcopy live fetch stays bot-gated (same as MJO/BoM) — not worked
 around, documented as policy; it also blocks M6/M8's real calibration.
-M0-M11 are all done. M12 (API) is in progress: 17 of 18 endpoints built
-(health/contracts/series-valuation/index/quotes/mpr/forecast/basis/
-ledger/hedge/parametric-design/scenarios-run/greeks), confirmed via a
-real uvicorn run and real integration tests against the real DB, which
-also surfaced and fixed several genuine gaps — a valuations/compare
-join that would've silently dropped a method, basis's ~48s uncached
-latency (fixed with a request-hash cache), RAINCHNNAI's listed series
-repeatedly going missing from the contracts table (root-caused: a
-test's own real teardown deleting the shared real registration; fixed
-permanently with an idempotent `mq specs seed-registry` command wired
-into `make check`), a real degenerate-CVaR hedge case (unconstrained
-`/v1/hedge` genuinely hits the 10,000-lot fallback, reproducing
+M0-M11 are all done. M12 (API) is in progress: 17 of 18 SPEC-listed
+endpoint rows built (health/contracts/series-valuation/index/quotes/
+mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/
+greeks/track-record) — **note the corrected count**: SPEC's own table
+lists `/v1/health`+`/v1/health/data` as one row but they're 2 real
+routes, so 18 real routes built = 17 of SPEC's 18 table rows, not 18 —
+caught and fixed after every earlier "N of 18" figure this session had
+been off by one. Confirmed via a real uvicorn run and real integration
+tests against the real DB, which also surfaced and fixed several
+genuine gaps — a valuations/compare join that would've silently
+dropped a method, basis's ~48s uncached latency (fixed with a
+request-hash cache), RAINCHNNAI's listed series repeatedly going
+missing from the contracts table (root-caused: a test's own real
+teardown deleting the shared real registration; fixed permanently with
+an idempotent `mq specs seed-registry` command wired into `make
+check`), a real degenerate-CVaR hedge case (unconstrained `/v1/hedge`
+genuinely hits the 10,000-lot fallback, reproducing
 `docs/methods/hedge.md`'s own finding live, not sanitized), and a
 correction to an earlier wrong claim that building `scenarios/run`/
 `greeks` needed a model-fitting pipeline that didn't exist — it did
@@ -56,8 +61,10 @@ correction to an earlier wrong claim that building `scenarios/run`/
 wired together outside a one-off script, now
 `mq.api.common.fit_real_chain_model`). `greeks` live-reproduces
 `docs/methods/greeks.md`'s own findings exactly (delta=1.0/gamma≈0,
-theta's SE missing the 5% bar at small n_paths). Only
-track-record/lineage remain for M12.
+theta's SE missing the 5% bar at small n_paths); `track-record`
+live-reproduces `docs/methods/forecasting.md`'s exact real mean_crps
+numbers via a genuine ~40-50s re-run of M7's 5-rung backtest (cached).
+Only `lineage` remains for M12.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

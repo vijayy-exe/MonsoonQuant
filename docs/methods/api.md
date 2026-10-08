@@ -7,8 +7,10 @@
 A real subset of SPEC's 18 listed `/v1` endpoints — each one backed by
 an already-tested M1-M11 function, not a stub. Confirmed live: ran a
 real `uvicorn` server and curled it (not just FastAPI's in-process
-`TestClient`), and its auto-generated OpenAPI schema lists all 17 routes
-correctly.
+`TestClient`), and its auto-generated OpenAPI schema lists all 18 real
+routes correctly (SPEC's own table lists `/v1/health`+`/v1/health/data`
+as one row but they're two real routes, so 18 real routes = 17 of
+SPEC's 18 table rows -- only `lineage` remains).
 
 ## 1. Built
 
@@ -31,6 +33,7 @@ correctly.
 | POST | `/v1/parametric/design` | M11's real `optimize_cover`, same real location/exposure/index inputs as `hedge` |
 | POST | `/v1/scenarios/run` | M11's real `run_scenario` against a real fitted M5.1/M5.2 chain model |
 | GET | `/v1/series/{id}/greeks` | M9's real `delta`/`gamma`/`theta_*`, same real fitted chain model as `scenarios/run` |
+| GET | `/v1/track-record` | M7's real 5-rung walk-forward backtest (`walk_forward_backtest`), re-run live, not stored |
 
 Response envelope (`data`/`meta` with `as_of`/`data_version`/
 `model_version`/`synthetic`/`disclaimer`) and RFC 9457 `problem+json`
@@ -191,10 +194,40 @@ No request-hash response cache here (unlike the three heavy POSTs):
 the model-fit cache already removes the dominant ~8s cost, and SPEC
 doesn't name `greeks` among the endpoints requiring response caching.
 
-## 7. What's not done yet
+## 7. `GET /v1/track-record` — a real live re-run, not a stored snapshot
 
-Two of SPEC's 18 listed endpoints: `GET /v1/track-record`,
-`/v1/lineage` — neither started.
+Unlike `greeks`/`scenarios` (which reuse a cached fitted chain model)
+and unlike `basis` (a stored-vs-live question that didn't apply to
+M10), there's no `model_runs` row to read for this: M7's real 5-rung
+backtest was reported in `docs/methods/forecasting.md` but never
+persisted. Re-running it live is also the more honest design for a
+"track record" endpoint — it should reflect current real data, not a
+frozen historical snapshot.
+
+Confirmed tractable the same way `scenarios/run` was: by actually
+timing the real scripts (`.scratch/forecasting_backtest.py`, `.scratch/
+lgbm_backtest.py`) before committing to the design — ~17s for
+clim/enso/analog, ~29s for clim/lgbm/lgbm_cqr (clim_baseline shared
+between runs), roughly the same order of cost as `basis`'s real ~48s.
+Cached by `(contract_code, as_of)` (confirmed: ~38-47s uncached, ~0.01s
+on a cache hit).
+
+**Reproduces M7's exact real numbers, confirmed by a test, not just
+plausible-looking ones**: a live call returns `mean_crps=156.44` for
+`clim_baseline`, matching both the original real backtest run and two
+independent fresh re-runs of the `.scratch` scripts this session. M7's
+own honestly-reported finding — every newer rung (`enso_clim_v1`,
+`analog_v1`, `lgbm_q_v1`, `lgbm_q_cqr_v1`) underperforms climatology at
+n=31 seasons — is asserted to still hold, not hidden or retuned.
+
+`RAINMUMBAI` isn't supported (`contract_code` defaults to
+`RAINCHNNAI`) — its 2026 season is closed with no forecasting-ladder
+training-row history, a real data-availability fact, not an
+implementation gap.
+
+## 8. What's not done yet
+
+One of SPEC's 18 listed endpoints: `GET /v1/lineage` — not started.
 
 Also not done: Pydantic schema exports for OpenAPI→TS generation
 (`openapi-typescript`), rate limiting, CORS to a real web origin (none

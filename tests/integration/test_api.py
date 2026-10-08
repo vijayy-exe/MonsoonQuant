@@ -454,3 +454,43 @@ def test_get_greeks_unknown_series_is_404() -> None:
 def test_get_greeks_rejects_n_paths_above_spec_cap() -> None:
     resp = client.get("/v1/series/RAINCHNNAI-OCT26/greeks", params={"n_paths": 200_001})
     assert resp.status_code == 422
+
+
+def test_get_track_record_reproduces_real_m7_backtest_numbers_and_caches() -> None:
+    """Real M7 5-rung walk-forward backtest against real IMD rainfall +
+    real ONI/DMI -- must reproduce the exact real numbers
+    docs/methods/forecasting.md reports (mean_crps=156.44 for
+    clim_baseline, confirmed by two independently-run .scratch scripts
+    this session), not just plausible-looking ones. Genuinely slow
+    uncached (~40-50s, this is the whole point of the endpoint), so
+    cached by (contract_code, as_of) -- the second call must be fast."""
+    t0 = time.time()
+    resp = client.get("/v1/track-record")
+    first_s = time.time() - t0
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["contract_code"] == "RAINCHNNAI"
+    assert data["n_training_years"] == 31
+    rungs = {r["model_id"]: r for r in data["rungs"]}
+    assert set(rungs) == {
+        "clim_baseline",
+        "enso_clim_v1",
+        "analog_v1",
+        "lgbm_q_v1",
+        "lgbm_q_cqr_v1",
+    }
+    assert rungs["clim_baseline"]["mean_crps"] == pytest.approx(156.44, abs=0.5)
+    assert rungs["clim_baseline"]["crpss_vs_baseline"] is None
+    # M7's own real, honestly-reported finding: every newer rung
+    # underperforms climatology at n=31 seasons -- must still hold.
+    for model_id in ["enso_clim_v1", "analog_v1", "lgbm_q_v1", "lgbm_q_cqr_v1"]:
+        assert rungs[model_id]["crpss_vs_baseline"] < 0
+    for r in rungs.values():
+        assert sum(r["pit_histogram"]["counts"]) == r["n_predictions"]
+
+    t0 = time.time()
+    resp2 = client.get("/v1/track-record")
+    second_s = time.time() - t0
+    assert resp2.status_code == 200
+    assert resp2.json()["data"] == data
+    assert second_s < max(1.0, first_s / 5)
