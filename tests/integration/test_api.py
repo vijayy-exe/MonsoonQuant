@@ -424,3 +424,33 @@ def test_post_scenarios_run_caches_by_request_hash() -> None:
     assert resp2.status_code == 200
     assert resp2.json()["data"] == resp1.json()["data"]
     assert second_s < max(0.5, first_s / 3)
+
+
+def test_get_greeks_returns_real_structural_delta_gamma() -> None:
+    """Real M9 Greeks against a real fitted chain model. delta=1.0/
+    gamma=0 exactly is the real structural finding docs/methods/
+    greeks.md documents (the CDR index is additive in observed_to_date
+    by construction) -- must hold here too, not just in the original
+    script/notebook."""
+    resp = client.get("/v1/series/RAINCHNNAI-OCT26/greeks", params={"n_paths": 5000})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["series_id"] == "RAINCHNNAI-OCT26"
+    assert data["delta"]["value"] == pytest.approx(1.0, abs=1e-6)
+    assert data["delta"]["pairing"] == "exact"
+    assert data["gamma"]["value"] == pytest.approx(0.0, abs=1e-9)
+    assert data["gamma"]["pairing"] == "exact"
+    assert data["theta_no_rain_day"] is not None
+    assert data["theta_no_rain_day"]["pairing"] == "partial"
+    assert data["theta_climatological_day"] is not None
+
+
+def test_get_greeks_unknown_series_is_404() -> None:
+    resp = client.get("/v1/series/NOPE-JAN99/greeks")
+    assert resp.status_code == 404
+    assert resp.json()["type"] == "mq/unknown-series"
+
+
+def test_get_greeks_rejects_n_paths_above_spec_cap() -> None:
+    resp = client.get("/v1/series/RAINCHNNAI-OCT26/greeks", params={"n_paths": 200_001})
+    assert resp.status_code == 422

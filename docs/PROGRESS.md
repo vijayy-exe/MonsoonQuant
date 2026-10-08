@@ -5,6 +5,36 @@ measured numbers.
 
 ---
 
+## 2026-10-08 (cont. 4) — M12 API: GET /v1/series/{id}/greeks (17/18)
+
+Continuation of the same day's M12 work (16/18 → 17/18) — the last
+piece of the correction started in the previous entry.
+
+- **Built `GET /v1/series/{id}/greeks`** (`src/mq/api/routes/greeks.py`,
+  new file): M9's real delta/gamma/theta_no_rain_day/
+  theta_climatological_day, against the same real fitted chain model
+  `scenarios/run` uses (its own small model-fit cache, not shared
+  across modules). Real `observed_to_date` default from `index_values`,
+  real `overdispersion_sd` calibration, `n_paths` capped at 200k --
+  same real-data defaults as `scenarios/run`.
+- Theta is omitted (not computed, not errored) when `start_date >=
+  period_end` -- there's no remaining season to bump a day into.
+- **Live-verified it reproduces the real documented findings, not just
+  passes synthetic assertions**: delta=1.0 exact, gamma's se_fraction
+  genuinely large (1.9) because gamma's true value is ~0 (SE/value
+  diverges as value->0, the exact phenomenon `docs/methods/greeks.md`
+  already documented), theta_no_rain_day's se_fraction=0.53 at
+  n_paths=5000 (missing SPEC's 5% bar, also exactly as documented --
+  the real run needed ~1M paths via the C++ core to clear it, this
+  route uses the NumPy-level functions so very large n_paths would be
+  proportionally slower here).
+- 3 new real-DB integration tests; full `make check` green, 29
+  integration tests total now (was 26); confirmed live via `uvicorn` +
+  the real OpenAPI schema (17 routes).
+- **M12 is now 17/18** -- only `track-record` and `lineage` remain.
+
+---
+
 ## 2026-10-08 (cont. 3) — M12 API: POST /v1/scenarios/run (16/18), corrected a wrong earlier claim
 
 Continuation of the same day's M12 work (15/18 → 16/18).

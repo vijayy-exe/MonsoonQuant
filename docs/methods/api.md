@@ -7,7 +7,7 @@
 A real subset of SPEC's 18 listed `/v1` endpoints — each one backed by
 an already-tested M1-M11 function, not a stub. Confirmed live: ran a
 real `uvicorn` server and curled it (not just FastAPI's in-process
-`TestClient`), and its auto-generated OpenAPI schema lists all 16 routes
+`TestClient`), and its auto-generated OpenAPI schema lists all 17 routes
 correctly.
 
 ## 1. Built
@@ -30,6 +30,7 @@ correctly.
 | POST | `/v1/hedge` | M9's real `min_variance_hedge`/`minimize_cvar_hedge`, against a real candidate location's real IMD rainfall and the real official index |
 | POST | `/v1/parametric/design` | M11's real `optimize_cover`, same real location/exposure/index inputs as `hedge` |
 | POST | `/v1/scenarios/run` | M11's real `run_scenario` against a real fitted M5.1/M5.2 chain model |
+| GET | `/v1/series/{id}/greeks` | M9's real `delta`/`gamma`/`theta_*`, same real fitted chain model as `scenarios/run` |
 
 Response envelope (`data`/`meta` with `as_of`/`data_version`/
 `model_version`/`synthetic`/`disclaimer`) and RFC 9457 `problem+json`
@@ -172,17 +173,28 @@ pattern). A real test confirms delta=1.0/gamma=0 under two different
 ENSO shocks and that the real 2015 Chennai-analog shock pulls the real
 2015 ONI/DMI values.
 
-## 6. What's not done yet
+## 6. `GET /v1/series/{id}/greeks` — the last piece of the correction in §5
 
-Two of SPEC's 18 listed endpoints:
+Built on the exact same `fit_real_chain_model` pipeline `scenarios/run`
+uses, with its own small model-fit cache (not shared across modules,
+same choice every other route made for its own cache). Query params
+mirror `scenarios/run`'s real-data defaults: `observed_to_date` from
+the latest real `index_values` row, `start_date` defaulting to the day
+after `as_of`, `n_paths` capped at 200k. Omits theta entirely (rather
+than erroring) when `start_date >= period_end`, since there's no
+remaining season to bump a day into. A real test confirms delta=1.0/
+gamma≈0 exactly — the same structural CDR-index finding
+`docs/methods/greeks.md` already documented — now reproduced live
+through the API, and that theta correctly reports `pairing="partial"`.
 
-- `GET /v1/series/{id}/greeks` — no longer blocked by a missing
-  pipeline (see §5's correction: the same `fit_real_chain_model` this
-  endpoint now uses is available). Genuinely remaining: wiring
-  `mq.risk.greeks`'s own delta/gamma/theta calls onto that pipeline,
-  plus its own request/cache shape — real work, just not a blocked
-  capability anymore.
-- `GET /v1/track-record`, `/v1/lineage` — not started.
+No request-hash response cache here (unlike the three heavy POSTs):
+the model-fit cache already removes the dominant ~8s cost, and SPEC
+doesn't name `greeks` among the endpoints requiring response caching.
+
+## 7. What's not done yet
+
+Two of SPEC's 18 listed endpoints: `GET /v1/track-record`,
+`/v1/lineage` — neither started.
 
 Also not done: Pydantic schema exports for OpenAPI→TS generation
 (`openapi-typescript`), rate limiting, CORS to a real web origin (none
