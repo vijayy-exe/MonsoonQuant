@@ -282,3 +282,70 @@ def test_post_hedge_caches_by_request_hash() -> None:
     assert resp2.status_code == 200
     assert resp2.json()["data"] == resp1.json()["data"]
     assert second_s < max(0.5, first_s / 3)
+
+
+def test_post_parametric_design_returns_real_optimized_cover() -> None:
+    """Real M11 optimize_cover against a real candidate location's real
+    loss sample and the real RAINCHNNAI official index -- the same case
+    study shape as docs/methods/parametric.md's real run."""
+    resp = client.post(
+        "/v1/parametric/design",
+        json={
+            "series_id": "RAINCHNNAI-OCT26",
+            "location_lat": 13.50,
+            "location_lon": 79.75,
+            "direction": "wet",
+            "exposure_template": "delivery_rider",
+            "template_params": {
+                "dry_threshold_mm": 600.0,
+                "saturation_mm": 1200.0,
+                "max_loss": 500_000.0,
+            },
+            "budget": 50_000.0,
+            "loading": 0.2,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["series_id"] == "RAINCHNNAI-OCT26"
+    assert data["n_years"] >= 2
+    opt = data["optimized"]
+    assert opt["premium"] <= 50_000.0 + 1e-6
+    assert 0.0 <= opt["basis_failure_probability"] <= 1.0
+    assert opt["limit"] > 0
+    assert opt["slope"] > 0
+
+
+def test_post_parametric_design_unknown_series_is_404() -> None:
+    resp = client.post(
+        "/v1/parametric/design",
+        json={
+            "series_id": "NOPE-JAN99",
+            "location_lat": 13.0,
+            "location_lon": 80.0,
+            "budget": 1000.0,
+        },
+    )
+    assert resp.status_code == 404
+    assert resp.json()["type"] == "mq/unknown-series"
+
+
+def test_post_parametric_design_caches_by_request_hash() -> None:
+    body = {
+        "series_id": "RAINCHNNAI-OCT26",
+        "location_lat": 13.25,
+        "location_lon": 80.0,
+        "direction": "wet",
+        "budget": 50_000.0,
+    }
+    t0 = time.time()
+    resp1 = client.post("/v1/parametric/design", json=body)
+    first_s = time.time() - t0
+    assert resp1.status_code == 200
+
+    t0 = time.time()
+    resp2 = client.post("/v1/parametric/design", json=body)
+    second_s = time.time() - t0
+    assert resp2.status_code == 200
+    assert resp2.json()["data"] == resp1.json()["data"]
+    assert second_s < max(0.5, first_s / 3)

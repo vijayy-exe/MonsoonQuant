@@ -44,6 +44,7 @@ from mq.risk.hedge import (
     event_cancellation_loss,
     min_variance_hedge,
 )
+from mq.risk.parametric import basis_failure_probability, optimize_cover, payout_for
 
 router = APIRouter(prefix="/v1", tags=["risk"])
 
@@ -247,4 +248,193 @@ def post_hedge(req: HedgeRequest, db: Session = Depends(get_db)) -> Envelope[Hed
         ),
     )
     _hedge_cache[cache_key] = data.model_dump(mode="json")
+    return Envelope(data=data, meta=_now_meta(as_of=effective_as_of))
+
+
+# Same caching rationale as `_hedge_cache` -- the dominant real cost is
+# the shared official-index reconstruction.
+_parametric_cache: dict[tuple[Any, ...], dict[str, Any]] = {}
+
+
+class ParametricDesignRequest(BaseModel):
+    series_id: str
+    location_lat: float = Field(..., ge=-90, le=90)
+    location_lon: float = Field(..., ge=-180, le=180)
+    direction: Literal["wet", "dry"] = "wet"
+    exposure_template: Literal[
+        "delivery_rider", "crop_yield", "event_cancellation", "construction_downtime"
+    ] = "delivery_rider"
+    template_params: dict[str, float] = Field(default_factory=dict)
+    loss_threshold: float | None = Field(
+        default=None, description="Defaults to the P75 (worst-quartile) of the real loss sample"
+    )
+    budget: float = Field(..., gt=0, description="Premium budget")
+    lam: float = Field(
+        default=0.0, description="Wang-transform risk parameter (0 = physical measure)"
+    )
+    loading: float = Field(default=0.0, ge=0)
+    trigger_grid: list[float] | None = Field(
+        default=None,
+        description=(
+            "Defaults to 8 points from the real index's own median to its max -- SPEC's real "
+            "finding (docs/methods/parametric.md): an unrestricted grid starting at the index's "
+            "minimum lets the optimizer find a degenerate near-always-pay cover"
+        ),
+    )
+    slope_grid: list[float] = Field(default_factory=lambda: [1.0, 5.0, 20.0, 50.0, 100.0, 300.0])
+    limit_grid: list[float] = Field(
+        default_factory=lambda: [10_000.0, 50_000.0, 200_000.0, 500_000.0]
+    )
+    as_of: date | None = None
+
+
+class OptimizedCoverResult(BaseModel):
+    trigger: float
+    slope: float
+    limit: float
+    premium: float
+    basis_failure_probability: float
+    converged: bool
+    n_grid_evaluated: int
+
+
+class ParametricDesignData(BaseModel):
+    series_id: str
+    n_years: int
+    location: dict[str, float]
+    direction: str
+    loss_threshold_used: float
+    no_cover_basis_failure_probability: float
+    optimized: OptimizedCoverResult
+    payout_nonzero_years: int
+
+
+def _parametric_cache_key(req: ParametricDesignRequest, effective_as_of: date) -> tuple[Any, ...]:
+    return (
+        req.series_id,
+        effective_as_of.isoformat(),
+        round(req.location_lat, 6),
+        round(req.location_lon, 6),
+        req.direction,
+        req.exposure_template,
+        tuple(sorted(req.template_params.items())),
+        req.loss_threshold,
+        req.budget,
+        req.lam,
+        req.loading,
+        tuple(req.trigger_grid) if req.trigger_grid else None,
+        tuple(req.slope_grid),
+        tuple(req.limit_grid),
+    )
+
+
+@router.post("/parametric/design")
+def post_parametric_design(
+    req: ParametricDesignRequest, db: Session = Depends(get_db)
+) -> Envelope[ParametricDesignData]:
+    """Real M11 parametric-cover optimisation (SPEC §9.2): grid search +
+    Nelder-Mead refine over `(trigger, slope, limit)` to minimize
+    basis-failure probability subject to a premium budget, against a
+    real candidate location's real loss sample and the real official
+    index -- `mq.risk.parametric.optimize_cover` directly, no new
+    pricing math. Cached by request hash (SPEC §9.3).
+
+    Exposure is the same illustrative-on-real-data pattern as `/v1/hedge`
+    (SPEC's own §7.11 posture): a real location's real CDR reconstruction
+    run through one of SPEC's named exposure templates. The real M11 run
+    (`docs/methods/parametric.md`) found an unrestricted trigger grid lets
+    the optimizer find a degenerate near-always-pay cover -- the default
+    `trigger_grid` here (median-to-max of the real index) avoids that by
+    the same restriction the real run used; passing a grid that starts
+    below the median reproduces the degenerate case, deliberately not
+    guarded against here since it's a legitimate optimum of the literal
+    objective, not an error."""
+    contract_code = db.execute(
+        select(Contract.contract_code).where(Contract.series_id == req.series_id)
+    ).scalar_one_or_none()
+    if contract_code is None:
+        raise unknown_series(req.series_id)
+
+    effective_as_of = req.as_of if req.as_of is not None else date.today()
+    cache_key = _parametric_cache_key(req, effective_as_of)
+    cached = _parametric_cache.get(cache_key)
+    if cached is not None:
+        return Envelope(
+            data=ParametricDesignData.model_validate(cached), meta=_now_meta(as_of=effective_as_of)
+        )
+
+    spec = load_resolved_spec(db, req.series_id, contract_code)
+    rain_grid = load_rain_grid(effective_as_of)
+    official_values = official_index_values(spec, rain_grid)
+    local_values = local_index_series(
+        spec, rain_grid, sorted(official_values), lat=req.location_lat, lon=req.location_lon
+    )
+    common_years = sorted(set(local_values) & set(official_values))
+    if len(common_years) < 2:
+        raise infeasible_hedge(
+            f"{req.series_id}: only {len(common_years)} overlapping year(s) between this "
+            "location and the official index -- need at least 2 scenarios"
+        )
+
+    local_arr = np.array([local_values[y] for y in common_years])
+    index_arr = np.array([official_values[y] for y in common_years])
+    exposure_fn = _EXPOSURE_TEMPLATES[req.exposure_template](**req.template_params)
+    loss_arr = exposure_fn(local_arr - local_arr.min())
+
+    loss_threshold = (
+        req.loss_threshold if req.loss_threshold is not None else float(np.quantile(loss_arr, 0.75))
+    )
+    trigger_grid = (
+        req.trigger_grid
+        if req.trigger_grid is not None
+        else list(np.linspace(float(np.median(index_arr)), float(index_arr.max()), 8))
+    )
+
+    result = optimize_cover(
+        loss_arr,
+        index_arr,
+        direction=req.direction,
+        loss_threshold=loss_threshold,
+        budget=req.budget,
+        lam=req.lam,
+        loading=req.loading,
+        trigger_grid=trigger_grid,
+        slope_grid=req.slope_grid,
+        limit_grid=req.limit_grid,
+    )
+
+    no_cover_bfp = float(np.mean(loss_arr > loss_threshold))
+    final_payout = payout_for(index_arr, result.params)
+    # Sanity cross-check: optimize_cover's own reported bfp should match
+    # recomputing it directly from the final payout -- both real, not
+    # trusted blindly to agree just because they came from the same call.
+    recomputed_bfp = basis_failure_probability(
+        loss_arr, final_payout, loss_threshold=loss_threshold
+    )
+    if abs(recomputed_bfp - result.basis_failure_probability) > 1e-9:
+        raise RuntimeError(
+            f"internal inconsistency: optimize_cover reported "
+            f"bfp={result.basis_failure_probability} but recomputing from its own "
+            f"returned payout gives {recomputed_bfp}"
+        )
+
+    data = ParametricDesignData(
+        series_id=req.series_id,
+        n_years=len(common_years),
+        location={"lat": req.location_lat, "lon": req.location_lon},
+        direction=req.direction,
+        loss_threshold_used=loss_threshold,
+        no_cover_basis_failure_probability=no_cover_bfp,
+        optimized=OptimizedCoverResult(
+            trigger=result.params.trigger,
+            slope=result.params.slope,
+            limit=result.params.limit,
+            premium=result.premium,
+            basis_failure_probability=result.basis_failure_probability,
+            converged=result.converged,
+            n_grid_evaluated=result.n_grid_evaluated,
+        ),
+        payout_nonzero_years=int(np.sum(final_payout > 0)),
+    )
+    _parametric_cache[cache_key] = data.model_dump(mode="json")
     return Envelope(data=data, meta=_now_meta(as_of=effective_as_of))

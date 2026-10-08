@@ -7,7 +7,7 @@
 A real subset of SPEC's 18 listed `/v1` endpoints — each one backed by
 an already-tested M1-M11 function, not a stub. Confirmed live: ran a
 real `uvicorn` server and curled it (not just FastAPI's in-process
-`TestClient`), and its auto-generated OpenAPI schema lists all 14 routes
+`TestClient`), and its auto-generated OpenAPI schema lists all 15 routes
 correctly.
 
 ## 1. Built
@@ -28,6 +28,7 @@ correctly.
 | GET | `/v1/ledger` | the real `prediction_ledger` table |
 | GET | `/v1/ledger/verify` | `mq.ledger.verify.verify_chain` directly, no new logic |
 | POST | `/v1/hedge` | M9's real `min_variance_hedge`/`minimize_cvar_hedge`, against a real candidate location's real IMD rainfall and the real official index |
+| POST | `/v1/parametric/design` | M11's real `optimize_cover`, same real location/exposure/index inputs as `hedge` |
 
 Response envelope (`data`/`meta` with `as_of`/`data_version`/
 `model_version`/`synthetic`/`disclaimer`) and RFC 9457 `problem+json`
@@ -122,9 +123,27 @@ to converge to. The endpoint does not sanitize or cap this; a test
 asserts it happens, and a second test confirms passing `constraints`
 (e.g. `max_order_lots`) avoids it.
 
-## 4. What's not done yet
+## 4. `POST /v1/parametric/design` — real M11 optimizer, same real-data posture as hedge
 
-Four of SPEC's 18 listed endpoints:
+Request mirrors `hedge`'s location/exposure-template shape, plus
+`direction` (wet/dry), `budget`, `lam`/`loading` (Wang pricing), and
+optional `trigger_grid`/`slope_grid`/`limit_grid`. Defaults
+`loss_threshold` to the real loss sample's own P75 and `trigger_grid`
+to 8 points from the real index's median to its max — the exact
+restriction `docs/methods/parametric.md`'s real run used after finding
+an unrestricted grid lets the optimizer find a degenerate near-always-
+pay cover. Passing a `trigger_grid` that starts below the median would
+reproduce that degenerate case; deliberately not guarded against, since
+it's a legitimate optimum of the literal objective SPEC states, not a
+bug (same posture the original M11 finding took). Includes an internal
+self-consistency check: `optimize_cover`'s reported basis-failure
+probability is recomputed independently from its own returned payout
+and compared, raising if they disagree by more than float tolerance.
+Cached by request hash.
+
+## 5. What's not done yet
+
+Three of SPEC's 18 listed endpoints:
 
 - `GET /v1/series/{id}/greeks` — unlike the other GETs, there is no
   `greeks` results table and no reusable "load real data, fit the chain
@@ -133,14 +152,10 @@ Four of SPEC's 18 listed endpoints:
   needs that pipeline built first (or a persistence table + a batch job
   to populate it), not a model fit live inside an HTTP request handler
   — real remaining work, not a thin route like the others were.
-- `POST /v1/parametric/design`, `/v1/scenarios/run` — need request
-  schemas plus SPEC's `n_paths` cap and 5s time-box. `parametric/design`
-  is tractable the same way `hedge` was (`mq.risk.parametric` also
-  operates on real historical scenario arrays, no simulator/model-fit
-  needed — confirmed by reading its source, not assumed). `scenarios/run`
-  may hit the same no-reusable-pipeline blocker as `greeks`, since M11's
-  real scenario-lab run also used ad hoc `ChainModel` fitting — not yet
-  checked.
+- `POST /v1/scenarios/run` — needs a request schema plus SPEC's
+  `n_paths` cap and 5s time-box. May hit the same no-reusable-pipeline
+  blocker as `greeks`, since M11's real scenario-lab run also used ad
+  hoc `ChainModel` fitting — not yet checked.
 - `GET /v1/track-record`, `/v1/lineage` — not started.
 
 Also not done: Pydantic schema exports for OpenAPI→TS generation

@@ -5,6 +5,39 @@ measured numbers.
 
 ---
 
+## 2026-10-08 (cont. 2) — M12 API: POST /v1/parametric/design (15/18)
+
+Continuation of the same day's M12 work (14/18 → 15/18).
+
+- **Built `POST /v1/parametric/design`** in `src/mq/api/routes/risk.py`:
+  M11's real `optimize_cover` (grid search + Nelder-Mead) against a real
+  candidate location's real loss sample and the real official index —
+  same case-study shape as `docs/methods/parametric.md`'s real run.
+  Confirmed before building it (by reading `mq.risk.parametric`'s
+  source, not assuming) that it's tractable the same way `hedge` was:
+  real historical scenario arrays, no simulator/model-fit needed.
+- Defaults `loss_threshold` to the real loss sample's own P75 and
+  `trigger_grid` to 8 points spanning the real index's median-to-max —
+  the exact restriction the real M11 run used after finding an
+  unrestricted grid lets the optimizer find a degenerate near-always-
+  pay cover. A caller can still pass a grid that reproduces the
+  degenerate case; deliberately not guarded against, matching the
+  original finding's own posture (a legitimate optimum of the literal
+  objective, not a bug to hide).
+- Added an internal self-consistency check: the route recomputes
+  `optimize_cover`'s reported basis-failure probability independently
+  from its own returned payout and raises if they disagree beyond
+  float tolerance — a real safeguard, not a decorative assert (uses a
+  proper exception, not Python's `assert`, so it can't be silently
+  optimized away).
+- Cached by request hash, same pattern as `hedge`/`basis`.
+- 3 new real-DB integration tests (optimizer result sanity, unknown-
+  series 404, cache-hit speed); full `make check` green, 20 integration
+  tests total now; confirmed live via `uvicorn` + `curl` (15 routes
+  total in the OpenAPI schema).
+
+---
+
 ## 2026-10-08 (cont.) — M12 API: POST /v1/hedge (14/18), real degenerate-CVaR finding reproduced live
 
 Continuation of the same day's M12 work (13/18 → 14/18).
