@@ -5,6 +5,49 @@ measured numbers.
 
 ---
 
+## 2026-10-09 (cont.) — M12 API: GET /v1/lineage — M12 COMPLETE (18/18 SPEC rows)
+
+Final M12 endpoint.
+
+- **Built `GET /v1/lineage?series&as_of`** (`src/mq/api/routes/
+  lineage.py`, new file): a pure read/assembly endpoint, unlike every
+  other endpoint built this session — no new computation, no cache
+  needed (confirmed live at 0.16s). Assembles real provenance from
+  `contract_specs` (spec_version + real source document IDs),
+  `valuations` (method/measure/as_of_date/run_id), `index_values` (the
+  latest snapshot's data_version), and `prediction_ledger` (the
+  richest real lineage source: model_id/model_version/data_version/
+  payload_sha256/row_hash/prev_hash -- the hash chain already carries
+  exactly this).
+- **Real, disclosed finding**: `valuations.run_id` (a nullable FK to
+  `model_runs`, meant to answer "what model run produced this") is
+  `NULL` for every real row in the database -- confirmed by querying
+  it directly. No write path in M4's valuation code was ever wired to
+  create a `model_runs` row and attach one. Reported explicitly in the
+  response (a `model_runs_note` field), not hidden or papered over
+  with a fabricated identifier.
+- 3 new real-DB integration tests (including a check that the real
+  hash chain's prev_hash linkage is internally consistent, not just
+  present); full `make check` green, 33 integration tests total now
+  (was 30); confirmed live via `uvicorn` (19 real routes in the
+  OpenAPI schema).
+
+**M12 is now complete: all 18 of SPEC's listed `/v1` endpoint rows are
+built, real, and integration-tested against the real DB.** Every
+endpoint is backed by an already-tested M1-M11 function against real
+data -- never a stub. Building this milestone surfaced and fixed
+several genuine bugs along the way (documented in full in
+`docs/methods/api.md`): a silently-method-dropping join, a
+~48s-uncached-latency surprise, a registration gap that recurred three
+times before being root-caused, a real degenerate-CVaR LP case
+reproduced live, a wrong claim about a missing model-fitting pipeline
+that was actually just never wired together, a miscounted running
+endpoint tally, and now this `run_id` gap. `docs/STATUS.md`,
+`docs/methods/api.md`, `CLAUDE.md` all updated to reflect M12 complete
+and point to M13 (dashboard, not started) as next.
+
+---
+
 ## 2026-10-09 — M12 API: GET /v1/track-record (17 of 18 SPEC rows; corrected the running count)
 
 Continuation of M12. Also fixes a real counting error: SPEC's table

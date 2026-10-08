@@ -494,3 +494,39 @@ def test_get_track_record_reproduces_real_m7_backtest_numbers_and_caches() -> No
     assert resp2.status_code == 200
     assert resp2.json()["data"] == data
     assert second_s < max(1.0, first_s / 5)
+
+
+def test_get_lineage_assembles_real_provenance() -> None:
+    """Real lineage for RAINCHNNAI-OCT26: the real spec version/source
+    IDs, real valuations (burn+dist, both with a real, honestly-null
+    run_id -- no write path ever attached one), the real latest index
+    snapshot's data_version, and the real hash-chained ledger rows for
+    the RAINCHNNAI contract."""
+    resp = client.get("/v1/lineage", params={"series": "RAINCHNNAI-OCT26"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["series_id"] == "RAINCHNNAI-OCT26"
+    assert data["contract_code"] == "RAINCHNNAI"
+    assert data["spec_version"] == "2026-08-31"
+    assert "ncdex_spec_rainchnnai_2026" in data["spec_source_ids"]
+    methods = {v["method"] for v in data["valuations"]}
+    assert {"burn", "dist"} <= methods
+    assert all(v["run_id"] is None for v in data["valuations"])
+    assert data["index"]["data_version"] is not None
+    assert len(data["ledger"]) >= 1
+    assert all(r["model_id"] == "clim_v1" for r in data["ledger"])
+    # hash-chain linkage: each row's prev_hash should be some earlier
+    # row's own row_hash (or the genesis all-zero hash), not fabricated
+    hashes = {r["row_hash"] for r in data["ledger"]}
+    assert all(r["prev_hash"] in hashes or set(r["prev_hash"]) == {"0"} for r in data["ledger"])
+
+
+def test_get_lineage_unknown_series_is_404() -> None:
+    resp = client.get("/v1/lineage", params={"series": "NOPE-JAN99"})
+    assert resp.status_code == 404
+    assert resp.json()["type"] == "mq/unknown-series"
+
+
+def test_get_lineage_requires_series_param() -> None:
+    resp = client.get("/v1/lineage")
+    assert resp.status_code == 422

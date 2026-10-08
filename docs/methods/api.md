@@ -225,12 +225,43 @@ n=31 seasons — is asserted to still hold, not hidden or retuned.
 training-row history, a real data-availability fact, not an
 implementation gap.
 
-## 8. What's not done yet
+## 8. `GET /v1/lineage` — the last endpoint; a pure assembly, and a real disclosed gap
 
-One of SPEC's 18 listed endpoints: `GET /v1/lineage` — not started.
+Unlike every other endpoint in this note, `lineage` needed no new
+computation and no cache: it's a pure read, assembling real provenance
+identifiers already stored across `contract_specs` (spec_version,
+source document IDs), `valuations` (method/measure/as_of_date/run_id),
+`index_values` (the latest snapshot's data_version), and
+`prediction_ledger` (model_id/model_version/data_version/
+payload_sha256/row_hash/prev_hash — by far the richest real lineage
+source, since the hash chain already carries exactly this). Confirmed
+fast live: 0.16s, no caching needed.
 
-Also not done: Pydantic schema exports for OpenAPI→TS generation
+**A real, disclosed gap found while building it**: `valuations.run_id`
+— a nullable FK to `model_runs` that exists in the schema specifically
+to answer "what model run produced this valuation" — is `NULL` for
+every real row in the database, confirmed by querying it directly. No
+write path in M4's burn/distribution valuation code was ever wired to
+create a `model_runs` row and attach its `run_id`. The response reports
+this explicitly (a `model_runs_note` field) rather than omitting the
+field or fabricating a plausible-looking identifier.
+
+## 9. **M12 is now complete** — all 18 of SPEC's listed endpoint rows
+
+Every endpoint is backed by a real, already-tested M1-M11 function
+against real data (never a stub or synthetic placeholder), confirmed
+live via a real `uvicorn` run, and covered by a real integration test
+against the real database. Along the way, building this milestone
+surfaced and fixed several genuine bugs/gaps documented throughout this
+note (§2's `valuations/compare` join and RAINCHNNAI-registration
+findings, §3's `basis` latency finding, the `/v1/hedge` degenerate-CVaR
+reproduction in `docs/methods/hedge.md`, §5's model-fitting-pipeline
+correction, §8's `run_id` gap) — each one caught by testing against
+real data rather than synthetic fixtures, consistent with this
+project's standing discipline.
+
+Still open, deliberately deferred to M13 (not a gap in M12 itself):
+Pydantic schema exports for OpenAPI→TS generation
 (`openapi-typescript`), rate limiting, CORS to a real web origin (none
-exists yet — M13), `web/lib/api/openapi.json` export (deliberately not
-created yet — that path belongs under M13's own `web/` scaffold, not
-manufactured ahead of it).
+exists yet), `web/lib/api/openapi.json` export (that path belongs
+under M13's own `web/` scaffold, not manufactured ahead of it).

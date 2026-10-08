@@ -25,7 +25,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 9 | **M8** Conditioned pricing · **M9** Greeks | ✅ M8 done (see M8 detail); M9 Greeks done (delta/gamma exact, theta meets SE<5% with enough paths — see M9 detail) | 4-method comparison daily; Greek SE < 5% | |
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
-| 12 | **M12** API hardening · live eval | 🟨 17 of 18 SPEC rows built (only lineage left) + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
+| 12 | **M12** API hardening · live eval | ✅ 18 of 18 SPEC rows built, M12 complete + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
@@ -226,7 +226,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M12 detail (API — 17 of 18 SPEC-listed endpoint rows built; health+health/data count as one SPEC row but two real routes)
+## M12 detail (API — 18 of 18 SPEC-listed endpoint rows built, M12 complete)
 
 | Item | Status |
 |---|---|
@@ -247,7 +247,8 @@ comments) — that's the main remaining honesty caveat.
 | `POST /v1/parametric/design` | ✅ real M11 `optimize_cover` (grid search + Nelder-Mead) against a real candidate location's real loss sample and the real official index, same case-study shape as `docs/methods/parametric.md`; cached by request hash; defaults `trigger_grid` to median-to-max of the real index (the real finding's own restriction) |
 | `POST /v1/scenarios/run` | ✅ real M11 scenario lab against a real fitted chain model (M5.1/M5.2's `fit_chain_model`, confirmed fast — 0.08s — once `mq.api.common.fit_real_chain_model` wired the real pipeline together); real `observed_to_date` default pulled from `index_values`; real `overdispersion_sd` calibrated against the real official index's own sd (not the demo's hardcoded 0.336); real 2015 Chennai-analog test confirms delta=1.0/gamma=0 under every shock, matching M11's own finding; `n_paths` capped at 200k per SPEC; two-tier cache (fitted model per contract/as_of + full response per request hash) |
 | `GET /v1/track-record` | ✅ a real, on-demand re-run of M7's 5-rung walk-forward backtest (all data real: IMD rainfall, ONI/DMI), not stored/stale numbers -- reproduces `docs/methods/forecasting.md`'s exact real mean_crps values (confirmed by a test). Real cost ~40-50s uncached (timed directly before committing to the design), so cached by (contract_code, as_of), same pattern as `basis` |
-| `GET /v1/lineage` | ⬜ not started |
+| `GET /v1/lineage` | ✅ real provenance assembled from `contract_specs`/`valuations`/`index_values`/`prediction_ledger` -- a pure read, no cache needed (0.16s live). Real, disclosed gap found: `valuations.run_id` is `NULL` for every real row (no write path ever attached one to a `model_runs` row); not hidden, reported in the response itself |
+| **M12 is now complete: all 18 of SPEC's listed `/v1` endpoint rows are built, real, and integration-tested against the real DB.** | ✅ |
 | OpenAPI export to a file, TS codegen, rate limiting, caching, CORS to a real origin | ⬜ not started — the file-export path (`web/lib/api/openapi.json`) deliberately not created ahead of M13's own `web/` scaffold |
 
 ---
@@ -306,7 +307,7 @@ comments) — that's the main remaining honesty caveat.
 | F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
 | F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
-| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | 🟨 17 of 18 SPEC-listed endpoint rows built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/greeks/track-record) -- only lineage left; real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
+| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ✅ 18 of 18 SPEC-listed endpoint rows built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/greeks/track-record/lineage); real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
 | F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
 | F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
 | F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ |
@@ -381,27 +382,32 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M11 are all done. M12 (API) is in progress: 17 of 18 SPEC rows
-built (health/contracts/series-valuation/index/quotes/mpr/forecast/
-basis/ledger/hedge/parametric-design/scenarios-run/greeks/
-track-record), real envelope + RFC9457 errors, confirmed via a real
-uvicorn run, real integration tests against the real DB (which also
-surfaced and fixed several genuine data/design/reliability gaps — see
-M12 detail, `docs/methods/api.md` — including a now-permanent fix for
-RAINCHNNAI's registration repeatedly going missing: `mq specs
-seed-registry` (`make seed-registry`), wired into `make check` itself,
-and a correction to an earlier wrong claim that no reusable
-model-fitting pipeline existed — it does,
-`mq.api.common.fit_real_chain_model` now wires it together, which is
-what made `scenarios/run` and `greeks` both tractable). `track-record`
-is a real, on-demand re-run of M7's 5-rung walk-forward backtest
-(~40-50s, cached), reproducing `docs/methods/forecasting.md`'s exact
-real numbers. Remaining for M12: only `lineage` left. M6/M8's real-data
-application stays blocked on bhavcopy (see M6/M8 detail); M7's
-`tft_v1` deliberately skipped (see M7 detail). Or address an open
-blocker above (bhavcopy/MJO bot-gates block the most — M2's real
-market data, M6/M8's real calibration, and M11's own research outputs
-all wait on bhavcopy specifically). Worth considering alongside
+Next: M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
+listed `/v1` endpoint rows built (health/contracts/series-valuation/
+index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/
+scenarios-run/greeks/track-record/lineage), real envelope + RFC9457
+errors, confirmed via a real uvicorn run, real integration tests
+against the real DB (which also surfaced and fixed several genuine
+data/design/reliability gaps — see M12 detail, `docs/methods/api.md`
+— including a now-permanent fix for RAINCHNNAI's registration
+repeatedly going missing: `mq specs seed-registry` (`make
+seed-registry`), wired into `make check` itself, and a correction to
+an earlier wrong claim that no reusable model-fitting pipeline existed
+— it does, `mq.api.common.fit_real_chain_model` now wires it together,
+which is what made `scenarios/run` and `greeks` both tractable).
+`track-record` is a real, on-demand re-run of M7's 5-rung walk-forward
+backtest (~40-50s, cached), reproducing `docs/methods/forecasting.md`'s
+exact real numbers. `lineage` assembles real provenance across
+`contract_specs`/`valuations`/`index_values`/`prediction_ledger`,
+disclosing (not hiding) that `valuations.run_id` is `NULL` for every
+real row since no write path ever populated `model_runs`. **M13
+(dashboard) is next** -- not started at all. Or M12 hardening not yet
+done: OpenAPI file export, TS client codegen, rate limiting, real CORS
+origin (all deliberately deferred to/pending M13's `web/` scaffold).
+Or address an open blocker above (bhavcopy/MJO bot-gates block the
+most — M2's real market data, M6/M8's real calibration, and M11's own
+research outputs all wait on bhavcopy specifically). Worth considering
+alongside
 either: extending the IMD backfill back to 1951 for SPEC's literal
 statistical-holdout window (currently only 1991-2020+2023) — a data
 task, not a code task.
