@@ -8,39 +8,26 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Any
 
-import polars as pl
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mq.api.common import BASIS_YEARS, load_rain_grid, load_resolved_spec, official_index_values
 from mq.api.deps import get_db
 from mq.api.errors import unknown_series
 from mq.api.schemas.envelope import Envelope, Meta
 from mq.db.models import (
     Contract,
-    ContractSpecRow,
     IndexValue,
     MarketQuote,
     MPREstimate,
     PredictionLedgerRow,
     Valuation,
 )
-from mq.io.asof import read_as_of
-from mq.pipelines.imd import PARQUET_DIR
-from mq.pricing.burn import build_burn_sample
 from mq.risk.basis import basis_grid, to_geojson
-from mq.specs.contract import ContractSpec
-from mq.specs.loader import is_draft
 
 router = APIRouter(prefix="/v1/series", tags=["series"])
-
-# The real historical/backtest window used throughout this project
-# (M4's burn analysis, M10's basis engine real run, etc.): IMD data is
-# backfilled 1991-2020 plus the real-time-ingested 2023 season -- see
-# docs/STATUS.md's note on extending this range. Not a new constant
-# invented for the API layer, just the same window reused.
-_BASIS_YEARS = [*range(1991, 2021), 2023]
 
 
 class ValuationData(BaseModel):
@@ -438,29 +425,9 @@ def get_basis(
     if cached is not None:
         return Envelope(data=cached, meta=_now_meta(as_of=effective_as_of))
 
-    spec_row = db.execute(
-        select(ContractSpecRow)
-        .where(ContractSpecRow.contract_code == contract_code)
-        .order_by(ContractSpecRow.spec_version.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if spec_row is None:
-        raise unknown_series(f"{series_id}: no contract spec registered for {contract_code}")
-
-    spec = ContractSpec.model_validate(spec_row.yaml)
-    if is_draft(spec):
-        raise unknown_series(
-            f"{series_id}: contract spec is still a draft (unresolved VERIFY items)"
-        )
-
-    rain_grid = read_as_of(
-        loader=lambda: pl.read_parquet(f"{PARQUET_DIR}/**/*.parquet", hive_partitioning=True),
-        date_col="date",
-        as_of=effective_as_of,
-    )
-
-    official_sample = build_burn_sample(spec, rain_grid, _BASIS_YEARS)
-    official_index_values = dict(zip(official_sample.years, official_sample.payoffs, strict=True))
+    spec = load_resolved_spec(db, series_id, contract_code)
+    rain_grid = load_rain_grid(effective_as_of)
+    official_values = official_index_values(spec, rain_grid)
 
     if not isinstance(spec.stations, list):
         raise unknown_series(f"{series_id}: contract spec has no resolved stations")
@@ -472,8 +439,8 @@ def get_basis(
     cells = basis_grid(
         spec,
         rain_grid,
-        _BASIS_YEARS,
-        official_index_values=official_index_values,
+        BASIS_YEARS,
+        official_index_values=official_values,
         lat_bounds=lat_bounds,
         lon_bounds=lon_bounds,
     )
@@ -484,5 +451,5 @@ def get_basis(
     _basis_cache[cache_key] = geojson
     return Envelope(
         data=geojson,
-        meta=_now_meta(as_of=effective_as_of, data_version=str(official_sample.years[-1])),
+        meta=_now_meta(as_of=effective_as_of, data_version=str(max(official_values))),
     )
