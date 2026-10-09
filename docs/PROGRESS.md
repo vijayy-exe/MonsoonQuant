@@ -5,6 +5,97 @@ measured numbers.
 
 ---
 
+## 2026-10-09 (cont.) — M13 Dashboard — pages 2-9, a real CORS bug caught by Hedge Lab's E2E test
+
+All 9 of SPEC §10's pages now exist and render real data. Not every
+page hits its literal spec to the letter (noted below, not hidden).
+
+- **Pricing** (`/series/[id]/pricing`): method-comparison bar chart
+  (burn/dist, real intervals) via a new `BarCompare` component;
+  conditioned/mpr rungs render explicit "not yet available" cards with
+  the real reason (not written to `valuations` yet / blocked on real
+  settlement data) rather than fake bars. P-vs-Q overlay: honest empty
+  state (λ never calibrated against real data, same root cause).
+- **Forecast** (`/series/[id]/forecast`): fan-chart-shaped line+band
+  chart (new `LineBand` component, reused by Risk's λ chart) of
+  `fair_value`/`lo90`/`hi90` from the real `prediction_ledger`, a
+  model switcher (plain `<select>` + GET form, no client JS needed),
+  observed-to-date line overlay from `/index`. Analog-years table: not
+  built — `analog_v1`'s chosen seasons aren't in the API response
+  shape, said so rather than fabricated.
+- **Risk** (`/series/[id]/risk`): real delta/gamma/theta tiles with
+  SE/SE-fraction/pairing from `/greeks`; value-vs-rain curve is a
+  *labeled* local quadratic approximation from the same real
+  delta/gamma (fair_value + delta·Δrain + ½·gamma·Δrain²), not a full
+  repricing sweep — said so in the UI, not presented as more than it
+  is; λ chart honest-empty (same M6 blocker as Pricing).
+- **Hedge Lab** (`/hedge`): client-side form -> real `POST /v1/hedge`,
+  shows min-variance + CVaR95 side by side, surfaces the real
+  degenerate-CVaR fallback-cap finding inline when it fires. **Caught
+  and fixed a real bug while E2E-testing this**: `mq.api.main`'s CORS
+  middleware had `allow_origins=[]`, which silently blocks every
+  *browser-originated* request — invisible on every other page so far
+  because those are server-component fetches (not subject to CORS at
+  all), and Hedge Lab's client-side form is the first real browser ->
+  API call this project has. Fixed properly: new `Settings.web_origins`
+  (`src/mq/config.py`, defaults to the local dev origin, overridable via
+  `MQ_WEB_ORIGINS` once M14 deploys a real one), wired into
+  `CORSMiddleware` in `src/mq/api/main.py`. `make check` still green
+  after (82 mypy --strict files, 248 pytest passed).
+- **Basis Map** (`/basis`): real per-cell stats from `/series/{id}/basis`
+  rendered as a lon/lat scatter with a sequential blue ramp (metric
+  toggle: correlation/effectiveness/tail-dependence) and a click-to-
+  inspect detail panel. **Deliberately simpler than SPEC's literal
+  "MapLibre grid heatmap"** — no real basemap/tile source wired up yet
+  (would need a tile provider + likely an API key); `maplibre-gl` stays
+  an unused dependency for now, noted rather than silently left in
+  package.json unexplained. Per-cell click → scatter-vs-index: not
+  built, since `/basis` returns only aggregate stats, no raw paired
+  series — said so in the UI.
+- **Track Record** (`/track-record`): real ledger table (now 4 real
+  `clim_v1` rows for RAINCHNNAI: v0.1.0-v0.4.0) + hash-chain-verified
+  badge + a live re-run of M7's real 5-rung walk-forward backtest with
+  PIT histograms, confirmed to reproduce `docs/methods/forecasting.md`'s
+  exact real CRPS numbers (156.44/165.44/182.27/194.03/201.92). No link
+  to a public ledger-mirror repo — that was never built (M1's own
+  deferred item), said so explicitly instead of omitting the row
+  silently.
+- **Learn** (`/learn`): payoff playground re-implementing
+  `mq.risk.parametric.wet_cover_payout`'s exact formula client-side
+  (labeled as such) for drag interactivity, seeded from a real
+  contract's real current fair value; a 9-term glossary.
+- **Methods** (`/methods`): renders the real `docs/methods/*.md` files
+  straight off disk via `marked` (not a rewritten summary) with a doc
+  picker; "data sources & licences" and "changelog" sections point to
+  the real `docs/VERIFY.md`/`docs/PROGRESS.md` rather than reproducing
+  thousands of lines inline.
+- **E2E**: all 3 of SPEC §11's named flows now pass against the real
+  stack -- "Overview loads", "Hedge Lab produces a result", "Track
+  Record verifies chain" (`web/tests/e2e/`). Found and fixed a real
+  resource-contention issue along the way: running specs in Playwright's
+  default parallel-workers mode starves the one real (single-process,
+  synchronous, CPU-bound) uvicorn dev server -- `playwright.config.ts`
+  now runs `workers: 1`, with the reasoning recorded in a comment.
+- Nav wired up in `layout.tsx` for all 6 top-level pages now that they
+  exist (series-scoped pages reached via contract cards / `SeriesTabs`).
+  Chart color tokens added to `globals.css` (dataviz skill's validated
+  default categorical/status palette, kept separate from the muted UI
+  chrome tokens).
+
+**Not done**: Lighthouse ≥ 90 (not measured at all yet), MapLibre basemap
+for Basis Map, OpenAPI CI drift check, rate limiting, a real deployed
+CORS origin. All tracked in `docs/STATUS.md`'s M13 section.
+
+**Gate status:** M13's own gate (Lighthouse ≥ 90, E2E green) is still
+not fully met — E2E is green (3/3), Lighthouse isn't measured. All 9
+pages exist and show real data or an honest, explained empty/simplified
+state; nothing on any page is fabricated.
+
+**Next task:** Lighthouse pass + accessibility audit, or a real MapLibre
+basemap for Basis Map, or M12's remaining hardening items.
+
+---
+
 ## 2026-10-09 — M13 Dashboard (start) — Next.js scaffold + Overview page, real data end-to-end
 
 First slice of M13, not the whole milestone — one fully real page over

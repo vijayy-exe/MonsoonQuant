@@ -55,14 +55,19 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard) is started — page 1/9.** `web/` is scaffolded (Next.js
-16, TypeScript, Tailwind v4, the monsoon palette, a typed OpenAPI
-client via `make web-codegen`). The Overview page (`/`) is built and
-confirmed real end-to-end against the live API/DB, with a passing
-Playwright E2E test. Pages 2-9 (pricing/forecast/risk/hedge lab/basis
-map/track record/learn/methods) are next, in SPEC §10's order. M12
+**M13 (dashboard) has all 9 pages built**, real data or an honestly
+explained empty/simplified state throughout. All 3 of SPEC §11's named
+E2E flows pass (Overview loads; Hedge Lab produces a result; Track
+Record verifies chain). Caught and fixed a real bug along the way:
+`mq.api.main`'s CORS had `allow_origins=[]`, silently blocking every
+browser-originated request (server-component fetches aren't subject to
+CORS, so this was invisible until Hedge Lab's client-side form became
+the first real browser→API call) — fixed via `Settings.web_origins`
+(`src/mq/config.py`). Still open for M13's own gate: Lighthouse ≥ 90
+(not measured yet). Basis Map (page 6) is a simpler lon/lat scatter
+over real per-cell stats, not yet SPEC's literal MapLibre basemap. M12
 hardening not yet done (OpenAPI CI drift check, TS codegen in CI, rate
-limiting, real CORS origin) stays deferred.
+limiting, a real deployed CORS origin) stays deferred.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

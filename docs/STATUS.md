@@ -26,7 +26,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ✅ 18 of 18 SPEC rows built, M12 complete + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
-| 13 | **M13** Dashboard | 🟨 started — page 1/9 (Overview) real end-to-end | Lighthouse ≥ 90; E2E green | |
+| 13 | **M13** Dashboard | 🟨 all 9 pages built, real data; Lighthouse not measured | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
 
@@ -253,20 +253,29 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M13 detail (dashboard — page 1/9 built, real end-to-end)
+## M13 detail (dashboard — all 9 pages built, real data, Lighthouse not yet measured)
 
 | Item | Status |
 |---|---|
 | Next.js 16 scaffold (`web/`: App Router, TypeScript, Tailwind v4, pnpm) | ✅ |
 | Monsoon palette (deep slate/rain-blue/saffron), light default + dark via `data-theme`/`prefers-color-scheme`, toggle via `useSyncExternalStore` | ✅ |
+| Chart tokens (dataviz skill's validated default categorical/status palette) in `globals.css`, kept separate from the muted UI-chrome tokens | ✅ |
 | OpenAPI → TS pipeline: `make web-openapi` (exports `app.openapi()` directly, no server needed) → `openapi-typescript` → `openapi-fetch` typed client | ✅ `make web-codegen`; not yet wired into CI as a drift check (M12 hardening item, still deferred) |
-| `Lineage` component — hover/focus reveals a value's real envelope `meta` (as_of/data_version/model_version/spec_version) | ✅ every number on Overview uses it, not a placeholder |
-| **Page 1 — Overview `/`** | ✅ real contract cards (fair-value band, settle, index-to-date), season progress bar, data-freshness pills; confirmed live against the real API/DB — RAINCHNNAI shows the exact M3/M4 numbers in `docs/STATUS.md`; RAINMUMBAI (no pricing run, season closed) renders explicit "pending"/"season closed" states, not a fabricated number |
-| Pages 2-9 (pricing, forecast, risk, hedge lab, basis map, track record, learn, methods) | ⬜ not started |
-| Playwright E2E (`web/tests/e2e/overview.spec.ts`) | ✅ passes against a real `next dev` + real `uvicorn` + real Postgres, not mocked. Real environment quirk hit and fixed: this sandbox's network blocks `cdn.playwright.dev`, so the default headless-shell binary can't download — `playwright.config.ts` detects and falls back to the full Chromium binary when present |
-| `pnpm run build` / `pnpm run lint` | ✅ both clean. One real Next.js 16 "Cache Components" issue fixed: `/page.tsx` needs `export const instant = false` since it must never be statically prerendered |
-| Lighthouse ≥ 90 | ⬜ not measured yet — only 1 of 9 pages exists |
-| CORS origin, rate limiting, OpenAPI drift check in CI, TS client codegen in CI | ⬜ still the M12 hardening items, still deferred |
+| `Lineage` component — hover/focus reveals a value's real envelope `meta` | ✅ used throughout |
+| **1 — Overview `/`** | ✅ real contract cards, season progress, freshness pills — see 2026-10-09 PROGRESS entry for exact numbers |
+| **2 — Pricing** `/series/[id]/pricing` | ✅ real burn/dist comparison bars w/ real 90% intervals; conditioned/mpr render explicit "not available" cards (real reason, not a fake bar); P-vs-Q overlay honest-empty (no real λ yet) |
+| **3 — Forecast** `/series/[id]/forecast` | ✅ real fan-chart-shaped line+band from `prediction_ledger`, model switcher, observed-to-date overlay. Analog-years table not built — not in the API response shape, said so rather than fabricated |
+| **4 — Risk** `/series/[id]/risk` | ✅ real delta/gamma/theta tiles (SE/pairing); value-vs-rain curve is a labeled local quadratic approximation from the same real delta/gamma, not a full repricing sweep; λ chart honest-empty |
+| **5 — Hedge Lab** `/hedge` | ✅ real `POST /v1/hedge` from a client-side form, min-variance + CVaR95 shown side by side, surfaces the real degenerate-CVaR-cap finding inline. **Found and fixed a real CORS bug** while E2E-testing this (see below) |
+| **6 — Basis Map** `/basis` | ✅ real per-cell stats as a lon/lat scatter (sequential ramp, metric toggle, click-to-inspect) — **deliberately simpler than SPEC's literal "MapLibre grid heatmap"**: no basemap/tile source wired up (`maplibre-gl` stays an unused dependency for now). Per-cell scatter-vs-index not built — `/basis` returns only aggregates, no raw paired series |
+| **7 — Track Record** `/track-record` | ✅ real ledger table (4 rows now), hash-chain-verified badge, live re-run of M7's real 5-rung backtest w/ PIT histograms — confirmed to reproduce `docs/methods/forecasting.md`'s exact CRPS numbers. No public ledger-mirror link (never built, M1's own deferred item) |
+| **8 — Learn** `/learn` | ✅ payoff playground re-implementing `mq.risk.parametric.wet_cover_payout`'s exact formula client-side (labeled), seeded from a real fair value; 9-term glossary |
+| **9 — Methods** `/methods` | ✅ renders the real `docs/methods/*.md` files off disk via `marked`, doc picker; data-sources/changelog sections point to the real `docs/VERIFY.md`/`docs/PROGRESS.md` rather than reproducing them |
+| **Real bug found & fixed**: `mq.api.main`'s CORS had `allow_origins=[]`, silently blocking every *browser*-originated request (server-component fetches aren't subject to CORS, which is why pages 1-4/6-9 worked fine before Hedge Lab's client-side form became the first real browser→API call) | ✅ `Settings.web_origins` (`src/mq/config.py`, defaults to the local dev origin, overridable via `MQ_WEB_ORIGINS`), wired into `CORSMiddleware`; `make check` still green after (82 mypy --strict files, 248 pytest) |
+| Playwright E2E, all 3 of SPEC §11's named flows (`web/tests/e2e/`) | ✅ "Overview loads", "Hedge Lab produces a result", "Track Record verifies chain" all pass against the real stack. Two real environment issues hit and fixed: (a) this sandbox blocks `cdn.playwright.dev`, so `playwright.config.ts` falls back to the full Chromium binary; (b) the suite must run `workers: 1` — parallel specs starve the one real synchronous, CPU-bound uvicorn dev process rather than testing anything real |
+| `pnpm run build` / `pnpm run lint` | ✅ both clean across all 9 pages |
+| Lighthouse ≥ 90 | ⬜ not measured yet |
+| CORS real deployed origin, rate limiting, OpenAPI drift check in CI, TS client codegen in CI | ⬜ still the M12 hardening items, still deferred |
 
 ---
 
@@ -399,13 +408,17 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M12 are all done, **M13 (dashboard) is started**: page 1/9
-(Overview) is built and real end-to-end (`web/` — Next.js 16 + the
-monsoon palette + a typed OpenAPI client + a real Playwright E2E test
-against the live API/DB). Pages 2-9 (pricing/forecast/risk/hedge
-lab/basis map/track record/learn/methods) are next, in SPEC §10's own
-order. See docs/PROGRESS.md's 2026-10-09 M13 entry and this file's M13
-detail section above.
+Next: M0-M12 are all done, **M13 (dashboard) has all 9 pages built**
+with real data or an honestly-explained empty/simplified state — see
+this file's M13 detail section and docs/PROGRESS.md's two 2026-10-09
+M13 entries. All 3 of SPEC §11's named E2E flows pass against the real
+stack. Remaining for M13's own gate: Lighthouse ≥ 90 (not measured at
+all yet), and optionally a real MapLibre basemap for Basis Map (page 6
+is currently a simpler lon/lat scatter over the same real data). M12's
+own hardening items (OpenAPI CI drift check, TS codegen in CI, rate
+limiting, a real deployed CORS origin) stay deferred — though a related
+real bug (CORS blocking all browser-side calls) got caught and fixed
+along the way, see the M13 detail table.
 
 M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
 listed `/v1` endpoint rows built (health/contracts/series-valuation/

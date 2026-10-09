@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     api_rate_limit_per_min: int = 60
     api_key_salt: str = ""
 
+    # SPEC §12: "CORS restricted to the web origin" -- defaults to the
+    # local Next.js dev server; override via MQ_WEB_ORIGINS (a JSON
+    # array, e.g. '["https://example.com"]' -- pydantic-settings' own
+    # parsing rule for list-typed env vars) once M14 deploys a real origin.
+    web_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+
     sentry_dsn: str = ""
 
     ledger_public_repo_url: str = ""

@@ -27,6 +27,7 @@ from mq.api.routes import (
     series,
     track_record,
 )
+from mq.config import get_settings
 
 app = FastAPI(
     title="MonsoonQuant API",
@@ -36,10 +37,17 @@ app = FastAPI(
     ),
 )
 
-# SPEC §12: "CORS restricted to the web origin" -- no web origin exists yet (M13).
+# SPEC §12: "CORS restricted to the web origin" -- M13's web/ now exists
+# and calls this API directly from the browser (Hedge Lab's client-side
+# form, SPEC §10 page 5), so an empty allow_origins would silently block
+# it (server-side fetches from Next.js server components are unaffected
+# by CORS -- only browser-originated requests are, which is why every
+# other dashboard page worked fine before this was caught). Defaults to
+# the local dev origin; MQ_WEB_ORIGINS overrides it once M14 deploys a
+# real one.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=get_settings().web_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

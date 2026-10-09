@@ -49,6 +49,58 @@
   --danger: #d08b7c;
 }
 
+/*
+ * Chart tokens (dataviz skill's validated default categorical/status
+ * palette -- run against this file's own surfaces: validate_palette.js
+ * passes all 4 checks for the first 3 slots all-pairs, and the
+ * adjacent-pair order for all 8). Kept separate from the muted UI
+ * chrome above: data encoding needs real chroma; chrome deliberately
+ * doesn't.
+ */
+:root {
+  --chart-surface: #fcfcfb;
+  --chart-1: #2a78d6; /* blue   -- burn / primary series */
+  --chart-2: #eb6834; /* orange -- dist / secondary series */
+  --chart-3: #1baf7a; /* aqua   -- conditioned */
+  --chart-4: #eda100; /* yellow -- mpr / fourth series */
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-good: #0ca30c;
+  --chart-warning: #fab219;
+  --chart-critical: #d03b3b;
+  --chart-seq-100: #cde2fb;
+  --chart-seq-400: #3987e5;
+  --chart-seq-700: #0d366b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --chart-surface: #1a1a19;
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-grid: #2c2c2a;
+    --chart-axis: #383835;
+    --chart-good: #0ca30c;
+    --chart-warning: #fab219;
+    --chart-critical: #e66767;
+  }
+}
+
+:root[data-theme="dark"] {
+  --chart-surface: #1a1a19;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+  --chart-good: #0ca30c;
+  --chart-warning: #fab219;
+  --chart-critical: #e66767;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -68,4 +120,70 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+.prose-mq {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  max-width: 68ch;
+}
+.prose-mq h1,
+.prose-mq h2,
+.prose-mq h3 {
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.prose-mq h1 {
+  font-size: 1.125rem;
+}
+.prose-mq h2 {
+  font-size: 1rem;
+}
+.prose-mq p,
+.prose-mq ul,
+.prose-mq ol,
+.prose-mq table {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+.prose-mq ul,
+.prose-mq ol {
+  padding-left: 1.5em;
+}
+.prose-mq a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.prose-mq code {
+  background: var(--surface-muted);
+  border-radius: 0.25em;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.prose-mq pre {
+  background: var(--surface-muted);
+  border-radius: 0.5em;
+  padding: 1em;
+  overflow-x: auto;
+}
+.prose-mq pre code {
+  background: none;
+  padding: 0;
+}
+.prose-mq table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8em;
+}
+.prose-mq th,
+.prose-mq td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.prose-mq blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted);
 }

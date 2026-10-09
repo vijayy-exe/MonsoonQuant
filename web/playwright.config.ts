@@ -32,6 +32,12 @@ function findFullChromiumExecutable(): string | undefined {
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
+  // The real uvicorn dev server is one process with heavy synchronous,
+  // CPU-bound endpoints (track-record's real ~40-50s backtest
+  // specifically) -- running specs in parallel starves each other of
+  // the GIL rather than testing anything real about the app, so this
+  // suite runs serially against the one shared backend.
+  workers: 1,
   use: {
     baseURL: process.env.MQ_WEB_BASE_URL ?? "http://localhost:3000",
     launchOptions: {
