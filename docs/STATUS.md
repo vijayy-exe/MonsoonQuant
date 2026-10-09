@@ -93,7 +93,7 @@ comments) — that's the main remaining honesty caveat.
 | NCDEX UDiFF bhavcopy format — found and registered the real spec | ✅ `ncdex_udiff_bhavcopy_format_2024` (34-column schema with ISO tags) |
 | `mq.pipelines.ncdex`: parse → filter → normalise → DQ gate → upsert | ✅ tested against a schema-accurate synthetic fixture (6 unit + 2 integration tests) |
 | DQ05 (stale data), DQ06 (unknown contract code), DQ07 (silent raw-file revision), DQ10 (settle outside DPL band) | ✅ |
-| DQ08 (climate index revision), DQ09 (proxy index jump >3σ) | ⬜ deferred — need M3's index engine to exist first |
+| DQ08 (climate index revision), DQ09 (proxy index jump >3σ) | ✅ done — M3's index engine now exists; DQ08 wired into `write_climate_idx` (info-severity, fires on a real release-date-ordered value change), DQ09 wired into the new `mq run daily` job against `IndexPath.daily_deviation_mm`. Both real-run for the first time, not just unit-tested (see "`mq run daily`" in the Feature catalogue section below) |
 | **Live bhavcopy fetch** | 🔴 blocked — ncdex.com's `/api/bhavcopy` sits behind a JS fingerprint/bot-detection challenge (confirmed via the page's own served JS). Not worked around, same policy as BoM. Needs either a manually-downloaded CSV or a real browser session (claude-in-chrome wasn't connected this session) |
 
 ---
@@ -222,7 +222,7 @@ comments) — that's the main remaining honesty caveat.
 | `compute_basis_stats`: correlation, RMSE, Kendall τ, empirical tail dependence (upper/lower), hedge effectiveness/ratio | ✅ exact closed-form checks on a perfectly-correlated synthetic pair (correlation=1, rmse=5, hedge_effectiveness=1, tail dependence=1); SPEC's own hedge-optimiser property tests (zero-correlation → h*≈0, doubling exposure doubles h*) also hold here since this computes the identical h* formula |
 | `basis_grid` + `to_geojson` | ✅ enumerates the real IMD grid's own distinct cells within a bounding box (no artificial step size); GeoJSON FeatureCollection output matches SPEC's stated shape for a MapLibre heatmap (rendering itself is M13) |
 | **Real run, RAINCHNNAI, all 31 seasons, ~1°×1° box (12 real cells)** | ✅ **sanity-confirms the methodology**: cells nearest the two real official stations score highest (correlation 0.96+, hedge effectiveness 0.92+); the box's far corner drops to 0.734/0.538 — basis risk measurably, substantially degrading with distance even within ~55-65km of Chennai. Full write-up: `docs/methods/basis.md` |
-| Seasonal mismatch (within-season daily co-movement) | ⬜ implemented in `compute_basis_stats` but not wired into `basis_grid`'s per-cell loop yet — needs the official index's real 2-station-averaged daily series threaded through |
+| Seasonal mismatch (within-season daily co-movement) | ✅ done — `basis_grid` now threads the real official 2-station-averaged daily series (`_official_daily_rainfall`, reusing `compute_index`'s own per-station averaging) and each cell's own daily series into `compute_basis_stats`, so every cell's `seasonal_mismatch` is real rather than always `None` |
 
 ---
 
@@ -350,30 +350,56 @@ comments) — that's the main remaining honesty caveat.
 |---|---|---|---|---|
 | F01 | Versioned contract-spec registry (YAML + source PDFs + hashes) | P0 | M1 | ✅ done, specs fully resolved |
 | F02 | Market-data ingestion (settlement, volume, OI) with provenance | P0 | M2 | 🟨 pipeline done; live fetch blocked (bot-gate) |
-| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 **31 years real data, zero gaps** (1991-2020 + 2023) + real-time Sep1-Oct3 2026 all ingested; station identity resolved (V2), exact coordinates still a placeholder |
-| F04 | Climate drivers (ONI, DMI/IOD, MJO phase) | P0 | M2 | 🟨 ONI+DMI live; MJO fetch-blocked (BoM) |
-| F05 | Data-quality gate blocking publication | P0 | M2 | 🟨 DQ01-07, DQ10 done; DQ08-09 need M3 |
-| F06 | Index replication engine + proxy-error tracking | P0 | M3 | ✅ `compute_index` done, golden-tested, 2 real performance bugs fixed; **real live CDR value computed and written** (observed_to_date=815.3mm as of Oct 3 2026); proxy_error has nothing to compare against yet |
-| F07 | **Prediction Ledger** (append-only, hash-chained, public) | P0 | M1→ | 🟨 fully working locally; public GitHub mirror deferred (no remote) |
+| F03 | Gridded rainfall ingestion (IMD 0.25°) + station mapping | P0 | M2 | 🟨 **31 years real data, zero gaps** (1991-2020 + 2023) + real-time, now wired into a real daily job (`mq run daily`, below); station identity resolved (V2), exact coordinates still a placeholder |
+| F04 | Climate drivers (ONI, DMI/IOD, MJO phase) | P0 | M2 | 🟨 ONI+DMI live, now in the real daily job; MJO fetch-blocked (BoM) |
+| F05 | Data-quality gate blocking publication | P0 | M2 | ✅ DQ01-10 all built and wired — DQ08 (climate-index revision, info) and DQ09 (proxy-index jump >3σ, warn) added and real-run for the first time (see "`mq run daily`" below) |
+| F06 | Index replication engine + proxy-error tracking | P0 | M3 | ✅ `compute_index` done, golden-tested, 2 real performance bugs fixed; **real live CDR value, now recomputed daily** (observed_to_date=787.2mm as of Oct 9 2026); proxy_error has nothing to compare against yet |
+| F07 | **Prediction Ledger** (append-only, hash-chained, public) | P0 | M1→ | 🟨 fully working locally, now fed by a real daily job; public GitHub mirror deferred (no remote) |
 | F08 | Historical burn analysis (with detrending options) | P0 | M4 | 🟨 real 31-season reconstruction done and persisted; detrending options not started |
 | F09 | Index-distribution pricing (Gamma/Lognormal/KDE/bootstrap/ENSO-conditioned) | P0 | M4 | ✅ done — 7 candidates, leave-one-out CRPS selection, `kde_cv` wins, written to `valuations` + MLflow |
-| F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ⬜ |
+| F10 | C++ chain-dependent stochastic rainfall simulator (1M paths < 10s) | P0 | M5 | ✅ done — 0.80s measured (12x under budget), bit-identical across thread counts, statistically validated against the NumPy reference (see M5 detail) |
 | F11 | Market price of risk (Wang + Esscher) w/ bootstrap/Bayesian CIs | P0 | M6 | 🟨 machinery done + tested + demoed on real M4 data with an illustrative settle; real NCDEX calibration blocked (bhavcopy bot-gate) |
 | F12 | Probabilistic forecaster (climatology → analog → LightGBM-quantile + conformal) | P0 | M7 | ✅ done — all 5 rungs built + real-backtested (every newer rung underperforms climatology on CRPS at n=31, honestly reported; conformal calibration fixes analog_v1/lgbm_q_v1's under-coverage even though it doesn't rescue CRPS). `tft_v1` (P2) deliberately skipped, reasoning on record |
 | F13 | Forecast-conditioned pricing & fair-value band | P0 | M8 | ✅ done — quantile-mapped simulator splice, real end-to-end run confirms SPEC's own "never assume monotonic shrinking uncertainty" on real data (band90 1171→1175→1125→**1420**→1240mm across h=7..89 days) |
 | F14 | Rainfall Greeks (delta, gamma, theta) with common random numbers | P0 | M9 | ✅ done — delta/gamma exact (structural, additive-in-obs index), theta_no_rain_day meets SE<5% at 1M paths (C++ core), theta_climatological_day's near-zero true value makes the relative-SE bar inapplicable (explained, not hidden) |
 | F15 | Hedge optimiser (min-variance + CVaR, integer lots, caps, margin) | P0 | M9 | ✅ done — min-variance (SPEC's own h*=-Cov/Var sign convention) + CVaR95 LP via scipy's HiGHS (no cvxpy needed); real run finds position limits are load-bearing for CVaR specifically, since the real index is positive in every historical season (see M9 detail) |
-| F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
+| F16 | Basis-risk engine + heatmap | P1 | M10 | ✅ done — engine real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); seasonal mismatch now wired into `basis_grid`'s per-cell loop (was computed but unused); GeoJSON + MapLibre rendering (M13) both real |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
-| F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
+| F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check). Reports only the simulator's own mean/P5/P95, not all 4 pricing methods — noted honestly, not claimed, still open |
 | F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ✅ 18 of 18 SPEC-listed endpoint rows built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/greeks/track-record/lineage); real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI exported to `web/lib/api/openapi.json` with a CI drift check; TS client generated via `openapi-fetch`; anon-tier rate limiting (60/min) live |
-| F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
-| F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
-| F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ |
-| F23 | "Learn" interactive explainer (payoff playground) | P1 | M13 | ⬜ |
-| F24 | Multi-site correlated simulator (Wilks) | P2 | M5+ | ⬜ |
-| F25 | Seasonal-forecast features (ECMWF SEAS5 via CDS) | P2 | M7+ | ⬜ |
-| F26 | Methods paper / preprint | P0 | M15 | ⬜ |
+| F20 | Next.js dashboard (9 pages) | P0 | M13 | ✅ done — all 9 pages real, Lighthouse ≥90/100 every page/category, 4 Playwright E2E specs green (see M13 detail) |
+| F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ✅ done — real ledger table, hash-chain badge, live 5-rung backtest w/ PIT histograms (see M13 detail) |
+| F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ not started (M14 deferred, your own call) |
+| F23 | "Learn" interactive explainer (payoff playground) | P1 | M13 | ✅ done — real parametric payoff formula, client-side, seeded from a real fair value (see M13 detail) |
+| F24 | Multi-site correlated simulator (Wilks) | P2 | M5+ | ⬜ not started (P2, explicitly stretch) |
+| F25 | Seasonal-forecast features (ECMWF SEAS5 via CDS) | P2 | M7+ | ⬜ not started (P2, explicitly stretch) |
+| F26 | Methods paper / preprint | P0 | M15 | ✅ done — `paper/preprint.md`, SPEC §15's full 9-section outline, every number sourced from a real measured result (see M15 detail) |
+
+### `mq run daily` (new — the same class of gap `make reproduce` had)
+
+`make ingest` called `mq run daily`, which didn't exist at all until this
+pass — a real, found gap, same shape as M15's `make reproduce` fix.
+Built `src/mq/pipelines/daily.py` + a new `mq run daily` CLI command,
+wiring together the real, already-built pieces: IMD real-time fetch,
+ONI/DMI fetch (both now DQ-gated through a real gate for the first
+time), the index engine, and the 4 newer forecasting rungs' live ledger
+write — one real contract (RAINCHNNAI) at a time, idempotent, every
+step logged with an explicit ok/skipped/failed status rather than
+silently doing nothing. Deliberately does **not** attempt bhavcopy/MJO
+(bot-gated), write a new `clim_v1` row (its real reference cell was
+never committed to source, only used in an M1 scratch script — writing
+one here would mean guessing it), or export to a git mirror (no remote).
+
+**Real-run results, not simulated**: the first run failed loudly on a
+genuine 5-day gap in the local real-time rainfall backfill (Oct 4-8,
+2026 — a transient IMD outage never backfilled) that `compute_index`
+correctly refused to paper over; backfilled it
+(`write_rain_grid_realtime`), re-ran, and got a clean pass — real
+`observed_to_date=787.2mm`, 4 new live ledger rows written, chain still
+intact (`mq ledger verify`: 12 rows). DQ09 (new) fired a real warn on
+the way (one day's deviation at 3.0σ against the season's own 4.24mm
+sd) — a legitimate catch, not a false positive, left as a warn per
+spec (doesn't block the write).
 
 ---
 
@@ -478,6 +504,18 @@ CLI command that didn't exist at all. Running it for real caught 2
 genuine reproduction discrepancies against earlier methods-note
 write-ups, reported as dated addenda rather than silently reconciled
 (see this file's M15 detail section above).
+
+**A second post-M15 audit against the 3 original planning docs** found
+and fixed 3 more real, non-blocked gaps: `make ingest` was calling `mq
+run daily`, a CLI command that didn't exist at all (same class of bug
+as `make reproduce` had) — now built (`src/mq/pipelines/daily.py`) and
+real-run, catching and requiring a backfill of a genuine 5-day IMD
+real-time data gap along the way; DQ08/DQ09 (deferred since M2 pending
+M3) are now built and wired into the real daily job; basis-risk's
+`seasonal_mismatch` was computed but never threaded into `basis_grid`'s
+per-cell loop — now wired through real daily series. The Feature
+catalogue table above was also stale (F10/F20/F21/F23/F26 still showed
+⬜ despite being done) — corrected.
 
 **One thing still genuinely needs your decision**: M14 (deploy &
 harden) needs real infra choices (hosting provider, domain, secrets)

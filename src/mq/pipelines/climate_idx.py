@@ -19,7 +19,15 @@ from pathlib import Path
 import polars as pl
 import requests
 
-from mq.pipelines.dq import DQCheckResult, dq02_duplicate_keys, dq04_schema_drift
+from mq.pipelines.dq import (
+    DQCheckResult,
+    DQGateFailedError,
+    dq02_duplicate_keys,
+    dq04_schema_drift,
+    dq08_climate_index_revision,
+    gate,
+    persist_results,
+)
 
 ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 DMI_URL = "https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data"
@@ -142,10 +150,19 @@ def run_climate_idx_dq(df: pl.DataFrame, *, dataset: str) -> list[DQCheckResult]
 
 def write_climate_idx(df: pl.DataFrame, *, parquet_dir: Path = PARQUET_DIR) -> list[Path]:
     """Write a long-format climate_idx dataframe, partitioned by `index=`.
-    Appends to (rather than overwrites) any existing partition file,
-    de-duplicating on (index, date) and keeping the latest release_date —
-    later ingestion runs of the same historical row are *revisions*, kept
-    as the newest observation, never silently discarded (SPEC DQ08)."""
+    Runs the DQ02/DQ04 gate first (raises DQGateFailedError and writes
+    nothing on failure). Appends to (rather than overwrites) any existing
+    partition file, de-duplicating on (index, date) and keeping the latest
+    release_date — later ingestion runs of the same historical row are
+    *revisions*, kept as the newest observation. Each partition's own
+    revision (if any) is recorded as a real DQ08 `info` row before being
+    collapsed, so the fact a revision happened isn't lost even though only
+    the newest value is kept on disk."""
+    gate_results = run_climate_idx_dq(df, dataset="climate_idx")
+    persist_results(gate_results)
+    if not gate(gate_results):
+        raise DQGateFailedError([r for r in gate_results if r.status == "fail"])
+
     out_paths = []
     for index_name, part in df.partition_by("index", as_dict=True).items():
         name = index_name[0] if isinstance(index_name, tuple) else index_name
@@ -154,6 +171,9 @@ def write_climate_idx(df: pl.DataFrame, *, parquet_dir: Path = PARQUET_DIR) -> l
         out_path = out_dir / "data.parquet"
         if out_path.exists():
             existing = pl.read_parquet(out_path)
+            persist_results(
+                [dq08_climate_index_revision(part, existing, dataset=f"climate_idx:{name}")]
+            )
             part = (
                 pl.concat([existing, part])
                 .sort("release_date")

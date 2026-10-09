@@ -74,6 +74,13 @@ ONI/DMI publication-lag gap, and 2 real reproduction discrepancies
 reported as dated addenda rather than reconciled) — full detail in
 `docs/PROGRESS.md`'s 2026-10-09/10 entries, don't re-litigate here.
 
+**A follow-up audit against the 3 original planning docs** found `make
+ingest` was calling `mq run daily`, a CLI command that never existed
+(same bug class as `make reproduce` had) — now built and real-run,
+which surfaced and required backfilling a genuine 5-day IMD data gap.
+Also closed DQ08/DQ09 (deferred since M2) and basis's unwired
+`seasonal_mismatch`. See `docs/STATUS.md`'s "`mq run daily`" entry.
+
 **One thing is blocked on your call, not effort**: M14 (deploy &
 harden) needs real infra choices (host, domain, secrets) — M15's demo
 video and ledger-mirror repo wait on this too. The P-vs-Q

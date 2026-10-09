@@ -5,6 +5,86 @@ measured numbers.
 
 ---
 
+## 2026-10-10 — Post-M15 audit against the 3 planning docs: `mq run daily` was fully broken too, DQ08/DQ09, basis seasonal mismatch
+
+User-requested follow-up: asked whether everything in the 3 original
+planning documents (`MonsoonQuant_SPEC.md`/`_PROMPTS.md`/
+`_Full_Implementation_Plan.md`, downloaded copies — confirmed
+byte-identical to the already-tracked `docs/SPEC.md`/`PROMPTS.md`/
+`IMPLEMENTATION_PLAN_V1.md`) was done, and to finish whatever wasn't.
+Auditing SPEC §8.1/§0.5 against the real codebase surfaced a second
+instance of last entry's exact bug class: `make ingest` calls `mq run
+daily`, and that command never existed at all.
+
+- **`mq run daily` built for real** (`src/mq/pipelines/daily.py` +
+  `src/mq/pipelines/daily_cli.py`): wires together the real,
+  already-built pieces into SPEC §8.1's daily DAG — IMD real-time
+  fetch, ONI/DMI fetch (both now DQ-gated through a real gate for the
+  first time — `write_climate_idx` never called its own
+  `run_climate_idx_dq`/`persist_results`/`gate` before this), the real
+  index engine, and the 4 newer forecasting rungs' live ledger write,
+  one real contract at a time. Every step reports an explicit
+  ok/skipped/failed status rather than silently doing nothing.
+  Deliberately skips: bhavcopy/MJO (bot-gated, same policy as M2), a
+  new `clim_v1` row (its real M1 reference cell was only ever used in
+  an uncommitted scratch script — writing one here would mean
+  guessing it, which `CLAUDE.md`'s "never modify ledger rows... without
+  asking" is read to cover), and git-mirror export (no remote).
+- **Real run, not simulated**: the very first run failed loudly —
+  `compute_index:RAINCHNNAI` refused with "missing rainfall data for
+  10 station-day(s)... cannot compute a continuous CDR index with
+  gaps", a genuine 5-day hole (Oct 4-8, 2026) in the local real-time
+  backfill from a transient IMD outage that was never filled.
+  Backfilled it (`write_rain_grid_realtime(2026-10-04, 2026-10-08)`),
+  re-ran: `[OK] compute_index:RAINCHNNAI -- observed_to_date=787.2mm,
+  DQ09=warn`, `[OK] write_live_forecasts:RAINCHNNAI -- 4/4 new rows`.
+  `mq ledger verify`: 12 rows, chain intact.
+- **DQ08/DQ09 built for real** (`src/mq/pipelines/dq.py`), both
+  deferred since M2 pending M3's index engine, which has existed since
+  M3 but nothing had circled back. DQ08 (climate-index revision, info
+  severity) wired into `write_climate_idx`'s existing per-partition
+  revision-dedup logic. DQ09 (proxy-index day-on-day jump >3σ, warn)
+  wired into `mq run daily` against `IndexPath.daily_deviation_mm`.
+  DQ09 fired for real on the first clean run — one day at exactly
+  3.0σ against the season's own 4.24mm sd (breach_count=1) — a
+  legitimate catch, not a false positive; `Severity` gained a 4th
+  value (`"info"`) to carry DQ08's SPEC-specified severity. 8 new unit
+  tests (`tests/unit/test_dq_checks.py`).
+- **Basis-risk's `seasonal_mismatch` wired in** (`src/mq/risk/basis.py`):
+  `compute_basis_stats` always computed it when given `local_daily`/
+  `index_daily`, but `basis_grid`'s per-cell loop never passed them —
+  every cell's `seasonal_mismatch` was silently `None`. Added
+  `_official_daily_rainfall` (reuses `compute_index`'s own per-station
+  averaging, mirroring `mq.pricing.burn.reconstruct_season`'s per-year
+  call pattern) to build the shared daily series once per `basis_grid`
+  call; each cell's own daily series comes from a direct `rain_grid`
+  filter. 3 new unit tests + 1 real end-to-end test on the module's
+  existing fixtures (`tests/unit/test_basis.py`).
+- **`docs/STATUS.md` corrected**: its Feature-catalogue table (bottom
+  section) was stale — F10 (simulator), F20 (dashboard), F21
+  (track-record), F23 (learn), F26 (preprint) still showed `⬜` despite
+  being done weeks of work ago per the milestone-detail sections above
+  them. Fixed to match.
+- **Not done, and explicitly not attempted**: `mq.version`/
+  `mq version show` (SPEC §6.3's literal `sha256(sorted(raw_sha256s))`
+  data-version scheme) doesn't exist — the codebase instead uses
+  consistent, descriptive ad hoc `data_version` strings everywhere
+  (e.g. `imd-1991-2020-full-plus-2023_n{N}_asof-{date}`), which works
+  but isn't SPEC's literal scheme; noted here rather than retrofitted
+  without being asked, since it would touch every write path's
+  `data_version` convention at once.
+
+**Gate status:** no milestone gate changes — this is hardening already-
+`✅` milestones (M2/M3/M10), not opening a new one. `make check` run
+after these changes; see this entry's own commit for the result.
+
+**Next task:** your call. M14 (deploy) remains the one explicit,
+infra-blocked item; otherwise the codebase is now current against all
+3 planning docs except the explicitly-documented bot-gates (bhavcopy,
+MJO), V12 licensing, and the 1951-holdout backfill extension.
+
+---
+
 ## 2026-10-10 — M15: preprint, README, architecture diagram, one-pager, and a real `make reproduce` (which was completely broken)
 
 User-requested follow-up: M15 (SPEC's final milestone -- paper, demo,

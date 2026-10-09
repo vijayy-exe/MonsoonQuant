@@ -6,7 +6,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from mq.risk.basis import compute_basis_stats, local_index_series, to_geojson
+from mq.risk.basis import basis_grid, compute_basis_stats, local_index_series, to_geojson
 from mq.specs.contract import ContractSpec, IndexDef, LPARef, MonthDay, SettlementRule, StationRef
 
 STATION_A = StationRef(station_id="a", name="Station A", lat=13.0, lon=80.0)
@@ -113,6 +113,28 @@ def test_compute_basis_stats_doubling_exposure_doubles_hedge_ratio() -> None:
     assert doubled_result.hedge_ratio == pytest.approx(2 * base_result.hedge_ratio, rel=1e-6)
 
 
+def test_compute_basis_stats_seasonal_mismatch_zero_for_perfectly_co_moving_daily_series() -> None:
+    dates = [date(2020, 9, 1), date(2020, 9, 2), date(2020, 9, 3)]
+    local_daily = pl.DataFrame({"date": dates, "rain_mm": [1.0, 2.0, 3.0]})
+    index_daily = pl.DataFrame({"date": dates, "rain_mm": [2.0, 4.0, 6.0]})  # scaled 2x, same shape
+
+    result = compute_basis_stats(
+        {2020: 1.0, 2021: 2.0, 2022: 3.0},
+        {2020: 1.0, 2021: 2.0, 2022: 3.0},
+        local_daily=local_daily,
+        index_daily=index_daily,
+    )
+
+    assert result.seasonal_mismatch == pytest.approx(0.0, abs=1e-9)
+
+
+def test_compute_basis_stats_seasonal_mismatch_none_without_daily_series() -> None:
+    result = compute_basis_stats(
+        {2020: 1.0, 2021: 2.0, 2022: 3.0}, {2020: 1.0, 2021: 2.0, 2022: 3.0}
+    )
+    assert result.seasonal_mismatch is None
+
+
 def test_compute_basis_stats_raises_with_too_few_common_years() -> None:
     with pytest.raises(ValueError, match="at least 3"):
         compute_basis_stats({2020: 1.0, 2021: 2.0}, {2020: 1.0, 2021: 2.0})
@@ -124,6 +146,30 @@ def test_compute_basis_stats_only_uses_overlapping_years() -> None:
     result = compute_basis_stats(local, index)
     assert result.n_years == 3
     assert result.correlation == pytest.approx(1.0)
+
+
+def test_basis_grid_populates_seasonal_mismatch_from_real_daily_series() -> None:
+    from mq.pricing.burn import build_burn_sample
+
+    spec = _spec()
+    rain_grid = _rain_grid()
+    years = [2026, 2027, 2028]
+    official_sample = build_burn_sample(spec, rain_grid, years)
+    official_index_values = dict(zip(official_sample.years, official_sample.payoffs, strict=True))
+
+    cells = basis_grid(
+        spec,
+        rain_grid,
+        years,
+        official_index_values=official_index_values,
+        lat_bounds=(13.0, 14.0),
+        lon_bounds=(80.0, 81.0),
+    )
+
+    assert cells  # at least one cell in bounds
+    for cell in cells:
+        assert cell.seasonal_mismatch is not None
+        assert not np.isnan(cell.seasonal_mismatch)
 
 
 def test_to_geojson_shape() -> None:

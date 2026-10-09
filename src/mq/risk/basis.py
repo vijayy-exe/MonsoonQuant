@@ -25,13 +25,16 @@ location's own rainfall as a *proxy* exposure (not a real one — no
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 import numpy as np
 import polars as pl
 from scipy import stats
 
+from mq.index.engine import compute_index
+from mq.index.lpa import DailyLPA
 from mq.pricing.burn import build_burn_sample
-from mq.specs.contract import ContractSpec, StationRef
+from mq.specs.contract import ContractSpec, MonthDay, StationRef
 
 
 def local_index_series(
@@ -149,6 +152,36 @@ def _seasonal_mismatch(local_daily: pl.DataFrame, index_daily: pl.DataFrame) -> 
     return float("nan") if corr is None else 1.0 - float(corr)
 
 
+def _official_daily_rainfall(
+    spec: ContractSpec, rain_grid: pl.DataFrame, years: list[int]
+) -> pl.DataFrame:
+    """The real multi-station-averaged daily rainfall (`IndexPath.
+    daily_rainfall_mm`) across every year's full season window,
+    concatenated into one (date, rain_mm) frame -- what `basis_grid`
+    needs as the shared `index_daily` side of each cell's seasonal-
+    mismatch check. Mirrors `mq.pricing.burn.reconstruct_season`'s own
+    per-year `compute_index` call and gap-skipping rule, but keeps the
+    daily series instead of collapsing it to the final spot value."""
+    if not isinstance(spec.index.period_end, MonthDay):
+        raise TypeError("expected a resolved period_end")
+    lpa_cache: dict[tuple[str, int, int], DailyLPA] = {}
+    frames = []
+    for year in years:
+        full_season_as_of = date(year, spec.index.period_end.month, spec.index.period_end.day)
+        try:
+            path = compute_index(spec, rain_grid, as_of=full_season_as_of, lpa_cache=lpa_cache)
+        except ValueError:
+            continue  # same data-gap rule as burn analysis -- skip, don't guess
+        if not path.dates or path.dates[-1] != full_season_as_of:
+            continue
+        frames.append(pl.DataFrame({"date": path.dates, "rain_mm": path.daily_rainfall_mm}))
+    if not frames:
+        return pl.DataFrame(
+            {"date": [], "rain_mm": []}, schema={"date": pl.Date, "rain_mm": pl.Float64}
+        )
+    return pl.concat(frames)
+
+
 def basis_grid(
     spec: ContractSpec,
     rain_grid: pl.DataFrame,
@@ -173,11 +206,20 @@ def basis_grid(
         .unique()
         .sort(["lat", "lon"])
     )
+    index_daily = _official_daily_rainfall(spec, rain_grid, years)
     results = []
     for cell_lat, cell_lon in cells.iter_rows():
         local_values = local_index_series(spec, rain_grid, years, lat=cell_lat, lon=cell_lon)
+        local_daily = rain_grid.filter(
+            (pl.col("lat") == cell_lat) & (pl.col("lon") == cell_lon)
+        ).select("date", "rain_mm")
         try:
-            cell_stats = compute_basis_stats(local_values, official_index_values)
+            cell_stats = compute_basis_stats(
+                local_values,
+                official_index_values,
+                local_daily=local_daily,
+                index_daily=index_daily,
+            )
         except ValueError:
             continue  # too few overlapping years for this cell -- skip, don't fabricate
         results.append(

@@ -10,6 +10,7 @@ import typer
 from mq.config import get_settings
 from mq.ledger.cli import app as ledger_app
 from mq.logging import configure_logging, get_logger
+from mq.pipelines.daily_cli import app as run_app
 from mq.research.cli import app as research_app
 from mq.specs.sources_cli import app as sources_app
 from mq.specs.specs_cli import app as specs_app
@@ -23,6 +24,7 @@ app.add_typer(sources_app, name="sources")
 app.add_typer(specs_app, name="specs")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(research_app, name="research")
+app.add_typer(run_app, name="run")
 
 
 @app.callback()

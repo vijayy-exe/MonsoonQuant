@@ -17,7 +17,7 @@ import polars as pl
 from mq.db.models import DQResult as DQResultRow
 from mq.db.session import session_scope
 
-Severity = Literal["pass", "warn", "fail"]
+Severity = Literal["pass", "info", "warn", "fail"]
 
 
 @dataclass(frozen=True)
@@ -180,6 +180,87 @@ def dq07_raw_hash_revision(
             "trade_date": trade_date.isoformat(),
             "previous_sha256": previous_sha256,
             "new_sha256": new_sha256,
+        },
+    )
+
+
+def dq08_climate_index_revision(
+    incoming: pl.DataFrame, existing: pl.DataFrame, *, dataset: str
+) -> DQCheckResult:
+    """Info (never blocks) when `incoming` carries a (index, date) row
+    whose value differs from `existing`'s already-stored row for that
+    same (index, date) at an older release_date -- a genuine revision
+    (ONI/DMI are published with a lag and get revised later), recorded
+    rather than silently overwritten with no trace. `existing` empty
+    (first-ever write) always passes -- nothing to revise yet."""
+    if existing.is_empty():
+        return DQCheckResult(check_id="DQ08", dataset=dataset, status="pass", details={})
+    joined = incoming.join(
+        existing.select("index", "date", "value", "release_date"),
+        on=["index", "date"],
+        how="inner",
+        suffix="_prev",
+    )
+    revised = joined.filter(
+        (pl.col("release_date") > pl.col("release_date_prev"))
+        & (pl.col("value") != pl.col("value_prev"))
+    )
+    status: Severity = "info" if revised.height > 0 else "pass"
+    return DQCheckResult(
+        check_id="DQ08",
+        dataset=dataset,
+        status=status,
+        details={
+            "revised_count": revised.height,
+            "revisions": [
+                {
+                    "index": r["index"],
+                    "date": r["date"].isoformat(),
+                    "previous_value": r["value_prev"],
+                    "previous_release_date": r["release_date_prev"].isoformat(),
+                    "new_value": r["value"],
+                    "new_release_date": r["release_date"].isoformat(),
+                }
+                for r in revised.head(20).iter_rows(named=True)
+            ],
+        },
+    )
+
+
+def dq09_proxy_index_jump(
+    df: pl.DataFrame, *, value_col: str, dataset: str, sigma_threshold: float = 3.0
+) -> DQCheckResult:
+    """Warn if any single day-on-day change in `value_col` (e.g.
+    `IndexPath.daily_deviation_mm`, already a delta -- not a level)
+    exceeds `sigma_threshold` times the series' own sample standard
+    deviation. Fewer than 2 observations always passes -- nothing to
+    compare a jump against."""
+    values = df[value_col].drop_nulls()
+    if values.len() < 2:
+        return DQCheckResult(
+            check_id="DQ09",
+            dataset=dataset,
+            status="pass",
+            details={"reason": "fewer than 2 observations"},
+        )
+    std_value = values.std()
+    if not isinstance(std_value, float):
+        raise TypeError(f"expected a float standard deviation for {value_col!r}, got {std_value!r}")
+    sd = std_value
+    if sd == 0:
+        return DQCheckResult(check_id="DQ09", dataset=dataset, status="pass", details={"sd": 0.0})
+    threshold = sigma_threshold * sd
+    breaches = df.filter(pl.col(value_col).abs() > threshold)
+    status: Severity = "warn" if breaches.height > 0 else "pass"
+    return DQCheckResult(
+        check_id="DQ09",
+        dataset=dataset,
+        status=status,
+        details={
+            "breach_count": breaches.height,
+            "sd": sd,
+            "threshold": threshold,
+            "sigma_threshold": sigma_threshold,
         },
     )
 
