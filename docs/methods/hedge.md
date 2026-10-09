@@ -100,7 +100,25 @@ index's own sign history, not an artifact of exposure scale.
 Script + full output: `.scratch/hedge_demo.py` / `.scratch/hedge_demo.log`
 (gitignored, real-data-dependent, same pattern as other real-data demos).
 
-## 6. What's not done yet
+## 6. Re-derived for M15's `mq research reproduce` (2026-10-10) — minor drift, structure holds
+
+Re-running this exact case study (same location, same `max_loss=
+500,000`, same `LotConstraints`) via the new, committed
+`mq.research.reproduce.reproduce_hedge_case_study` gives **-3 lots /
+18.1% effectiveness** for min-variance and **-20 lots (position-limit
+bound)** for CVaR95 — not identical to the **-5 lots / 42.0%** and
+**-20 lots** reported in §5 above. The CVaR95 result (hitting the
+position-limit cap) and the overall structural finding (§4: position
+limits are load-bearing for this contract, not optional) both still
+hold; the min-variance lot count/effectiveness drifted, most likely
+from a small real difference between whatever exact local data
+snapshot `.scratch/hedge_demo.py` ran against and the current one (the
+underlying real IMD data hasn't changed, but the exact DB-resolved
+spec object or intermediate rounding could differ slightly run to
+run). Reported honestly rather than silently reconciled — see the
+preprint's own limitations section (§8).
+
+## 7. What's not done yet
 
 - Real margin/notional figures — illustrative values used throughout,
   same bhavcopy blocker as M2/M6/M8.

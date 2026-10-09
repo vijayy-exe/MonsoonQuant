@@ -1,0 +1,34 @@
+{
+  "cvar95": {
+    "cvar_95": 19794.889390467986,
+    "do_nothing_cvar_95": 500000.0,
+    "h_realized": -1000.0,
+    "h_star": -1000.0,
+    "lots": -20,
+    "var_95": -64649.0560043609
+  },
+  "location": {
+    "lat": 13.5,
+    "lon": 79.75
+  },
+  "min_variance": {
+    "basis_contribution": 0.9997936872721536,
+    "constraints": {
+      "long_allowed": true,
+      "margin_budget": 100000.0,
+      "margin_per_lot": 2000.0,
+      "max_notional": null,
+      "max_order_lots": 20,
+      "notional_per_lot": null,
+      "position_limit_lots": null,
+      "short_allowed": true
+    },
+    "do_nothing_variance": 19903160098.465446,
+    "h_realized": -150.0,
+    "h_star": -154.7188666889081,
+    "hedge_effectiveness": 0.18138886487403727,
+    "lots": -3,
+    "residual_variance": 16292948480.798567
+  },
+  "n_years": 31
+}

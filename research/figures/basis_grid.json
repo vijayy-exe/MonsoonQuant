@@ -1,0 +1,260 @@
+{
+  "geojson": {
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            79.75,
+            12.5
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8190290395071567,
+          "hedge_effectiveness": 0.6708085675560154,
+          "hedge_ratio": 0.8902662424569247,
+          "kendall_tau": 0.5397849462365593,
+          "n_years": 31,
+          "rmse": 262.27283143114926,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.5,
+          "tail_dependence_upper": 0.8333333333333334
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.0,
+            12.5
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8153076269352987,
+          "hedge_effectiveness": 0.6647265265388684,
+          "hedge_ratio": 0.8160738971864462,
+          "kendall_tau": 0.5612903225806452,
+          "n_years": 31,
+          "rmse": 239.7417964609555,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.6666666666666666,
+          "tail_dependence_upper": 0.5
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            79.75,
+            12.75
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8169485688842762,
+          "hedge_effectiveness": 0.6674049642020672,
+          "hedge_ratio": 0.9231358008631748,
+          "kendall_tau": 0.5225806451612904,
+          "n_years": 31,
+          "rmse": 253.5007048559533,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.5,
+          "tail_dependence_upper": 0.5
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.0,
+            12.75
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8188644740029739,
+          "hedge_effectiveness": 0.6705390267841672,
+          "hedge_ratio": 0.7692797956910494,
+          "kendall_tau": 0.5440860215053763,
+          "n_years": 31,
+          "rmse": 227.57504574834508,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.6666666666666666,
+          "tail_dependence_upper": 0.5
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            79.75,
+            13.0
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.9059818701411118,
+          "hedge_effectiveness": 0.8208031490243863,
+          "hedge_ratio": 0.9996288530896634,
+          "kendall_tau": 0.7290322580645162,
+          "n_years": 31,
+          "rmse": 204.47907633818792,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.6666666666666666,
+          "tail_dependence_upper": 0.5
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.0,
+            13.0
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.9605020436345861,
+          "hedge_effectiveness": 0.9225641758262164,
+          "hedge_ratio": 0.9771516428270656,
+          "kendall_tau": 0.810752688172043,
+          "n_years": 31,
+          "rmse": 112.75389483067914,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.8333333333333334,
+          "tail_dependence_upper": 1.0
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            79.75,
+            13.25
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8506174039888771,
+          "hedge_effectiveness": 0.7235499679687767,
+          "hedge_ratio": 0.7386177505567452,
+          "kendall_tau": 0.7161290322580647,
+          "n_years": 31,
+          "rmse": 239.06866781507853,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.8333333333333334,
+          "tail_dependence_upper": 0.8333333333333334
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.0,
+            13.25
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.9094944374846066,
+          "hedge_effectiveness": 0.827180131815441,
+          "hedge_ratio": 0.9356947029440412,
+          "kendall_tau": 0.7548387096774194,
+          "n_years": 31,
+          "rmse": 165.31768111562303,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.6666666666666666,
+          "tail_dependence_upper": 0.6666666666666666
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.25,
+            13.25
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.9637672668982465,
+          "hedge_effectiveness": 0.9288473447445158,
+          "hedge_ratio": 1.022848357172935,
+          "kendall_tau": 0.849462365591398,
+          "n_years": 31,
+          "rmse": 112.75389483067936,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.8333333333333334,
+          "tail_dependence_upper": 0.8333333333333334
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            79.75,
+            13.5
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.7336999085210831,
+          "hedge_effectiveness": 0.5383155557638457,
+          "hedge_ratio": 0.6073722246920376,
+          "kendall_tau": 0.5741935483870969,
+          "n_years": 31,
+          "rmse": 268.0408699473778,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.8333333333333334,
+          "tail_dependence_upper": 0.6666666666666666
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.0,
+            13.5
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8238303394905234,
+          "hedge_effectiveness": 0.6786964282650714,
+          "hedge_ratio": 0.7818660557474254,
+          "kendall_tau": 0.6688172043010753,
+          "n_years": 31,
+          "rmse": 231.93520062815028,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.5,
+          "tail_dependence_upper": 0.6666666666666666
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            80.25,
+            13.5
+          ],
+          "type": "Point"
+        },
+        "properties": {
+          "correlation": 0.8887918589429095,
+          "hedge_effectiveness": 0.7899509685231929,
+          "hedge_ratio": 0.8606067772878033,
+          "kendall_tau": 0.7204301075268817,
+          "n_years": 31,
+          "rmse": 184.45347854513412,
+          "seasonal_mismatch": null,
+          "tail_dependence_lower": 0.6666666666666666,
+          "tail_dependence_upper": 0.6666666666666666
+        },
+        "type": "Feature"
+      }
+    ],
+    "type": "FeatureCollection"
+  },
+  "n_cells": 12
+}

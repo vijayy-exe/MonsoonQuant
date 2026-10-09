@@ -5,6 +5,91 @@ measured numbers.
 
 ---
 
+## 2026-10-10 — M15: preprint, README, architecture diagram, one-pager, and a real `make reproduce` (which was completely broken)
+
+User-requested follow-up: M15 (SPEC's final milestone -- paper, demo,
+launch) was still `⬜ not started`, overlooked in an earlier "everything
+is done" claim that was wrong to make. Checking it surfaced a second,
+more serious gap: `make reproduce` called `mq research reproduce`, a
+CLI command that didn't exist anywhere in the codebase -- genuinely
+broken, not just unwritten, and a direct violation of SPEC §17's own
+Principle 10 ("clean checkout -> make reproduce -> same figures").
+
+- **New `mq.research` package** (`src/mq/research/reproduce.py`,
+  `cli.py`): `mq research reproduce` / `make reproduce` now really
+  works, regenerating 5 real figures (M4 burn + leave-one-out
+  distribution selection, M7's full 5-rung walk-forward backtest, M9's
+  hedge case study, M10's basis grid, M11's parametric-cover case
+  study) from real local data, to `research/figures/*.json`. Built
+  entirely by calling the exact same committed engine functions the
+  live API already uses (`mq.pricing.burn`, `mq.pricing.selection`,
+  `mq.forecasting.evaluate.walk_forward_backtest`, `mq.risk.hedge`/
+  `cvar`/`basis`/`parametric`) -- no new pricing/risk math, only
+  orchestration + a JSON write.
+- **Real validation, not just "it runs"**: burn stats and the full
+  forecasting backtest reproduce the documented real numbers to 2
+  decimal places (mean=905.63mm, kde_cv CRPS=213.01; clim_baseline=
+  156.44, enso=165.44, analog=182.27, lgbm_q_v1=194.03,
+  lgbm_q_cqr_v1=201.92) -- confirmed by 5 new real integration tests
+  (`tests/integration/test_research_reproduce.py`, ~109s, a module-
+  scoped fixture runs the full pipeline once for all 5).
+- **2 real reproduction discrepancies found running this, reported as
+  dated addenda in the methods notes themselves, not silently
+  reconciled**:
+  1. The hedge case study's real re-run (same `max_loss=500,000`,
+     same `LotConstraints` `docs/methods/hedge.md` states) gives -3
+     lots / 18.1% effectiveness for min-variance, not the
+     earlier-documented -5 lots / 42.0%. Confirmed directly against
+     the *live* `/v1/hedge`-equivalent call, not just this script --
+     the CVaR95-hits-its-20-lot-position-limit structural finding
+     (the real index has been positive every historical season) still
+     holds exactly. Likely cause: a small difference between whatever
+     exact data snapshot the original `.scratch/hedge_demo.py`
+     (gitignored, never committed) ran against and the current one.
+  2. The parametric case study's optimized trigger/slope/limit/
+     premium reproduce *exactly* (843.4 / 1.0 / 10,000 / 200.1,
+     confirmed against the live `/v1/parametric/design` endpoint too)
+     -- but the basis-failure-probability figure reproduces as 0.0 for
+     both no-cover and optimized, not the documented 0.258 -> 0.032.
+     Root-caused by inspecting the real loss array directly: ~84% of
+     this location's 31 real years saturate at exactly `max_loss`
+     under the exposure template's default `saturation_mm=200`, so the
+     P75 threshold lands on that same saturated value, and
+     `basis_failure_probability`'s strict `>` comparison never counts
+     a tied value as "exceeding" its own threshold -- a real edge case
+     in that metric at this exposure scale. Not fixed here (a strict-
+     inequality change in an already-tested, API-serving module
+     deserves its own dedicated look, not a drive-by edit while
+     regenerating paper figures) -- flagged instead.
+- **`paper/preprint.md`**: SPEC §15's full 9-section outline, every
+  quantitative claim sourced from a real number already documented or
+  freshly re-derived above -- including both discrepancies, reported
+  in the Limitations section rather than smoothed over.
+- **README.md overhaul**: was a 2-line M0-era stub; now a real results
+  table (measured numbers only, SPEC §16's own instruction), an honest
+  "what's real vs. not (yet)" section, and a working quickstart.
+- **`docs/architecture.md`**: a Mermaid flowchart of the real data
+  flow, with the real gaps (bhavcopy/MJO bot-gates, no ledger mirror,
+  M14 not started) called out on the same page, not hidden in prose
+  elsewhere.
+- **`docs/SUMMARY.md`**: SPEC §16's one-page/CV-line-style summary,
+  measured numbers only.
+- `make check` green after all of this (pytest suite now includes the
+  5 new reproduce tests), full suite run standalone (not concurrently
+  with any server -- see the OOM lesson from the previous session).
+
+**Gate status**: M15 is now done except for the 3 things that
+genuinely can't be built by this session: a 2-minute demo video (needs
+a human to record/narrate), a public prediction-ledger mirror repo (a
+real hosting decision), and a public dashboard URL (needs M14, which
+the user has said to hold off on).
+
+**Next task**: nothing outstanding from this session's requests. M14
+(deploy) remains the one real open item, blocked on the user's
+infrastructure choice, not on more code.
+
+---
+
 ## 2026-10-09 (cont.) — M7's live-row gap closed: real live forecasts for the 4 newer rungs, analog-years table goes real
 
 User-requested follow-up after the M12/M13 work: build the live-

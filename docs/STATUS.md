@@ -28,7 +28,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 12 | **M12** API hardening · live eval | ✅ 18 of 18 SPEC rows built, M12 complete + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
 | 13 | **M13** Dashboard | ✅ stated gate met (Lighthouse ≥ 90 measured on all 9 pages, E2E 4/4), including a real MapLibre basemap on Basis Map; see M13 detail | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
-| 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
+| 15 | **M15** Paper, demo, launch | 🟨 preprint, README, architecture diagram, one-pager, and `make reproduce` all done; demo video + public URL + ledger mirror need the user / M14 | Definition of Done walkthrough passes | |
 
 ---
 
@@ -298,6 +298,20 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M15 detail (paper, demo, launch — writing deliverables + reproduce done)
+
+| Item | Status |
+|---|---|
+| **`mq research reproduce` / `make reproduce`** | ✅ was completely broken before this (the Makefile called a CLI command, `mq research reproduce`, that didn't exist at all — a real, found-not-assumed gap). New `mq.forecasting.live`-adjacent `mq.research` package (`src/mq/research/reproduce.py`, `cli.py`) regenerates 5 real figures (M4 burn+distribution, M7 forecasting backtest, M9 hedge case study, M10 basis grid, M11 parametric case study) from real local data, reusing the exact same committed engine functions the live API calls — no new pricing/risk math. Writes JSON to `research/figures/`. 5 real integration tests (`tests/integration/test_research_reproduce.py`) check the regenerated numbers against the documented ones, not just that it runs |
+| **2 real reproduction discrepancies found running this, reported not reconciled** | ✅ (1) the hedge case study's real re-run gives -3 lots/18.1% effectiveness for min-variance, not the earlier-documented -5 lots/42.0% (the CVaR95-hits-its-position-limit structural finding still holds exactly); (2) the parametric case study's optimized trigger/slope/limit/premium reproduce *exactly*, but the basis-failure-probability figure reproduces as 0.0/0.0, not the documented 0.258→0.032 — root-caused to ~84% of real loss values saturating at exactly the P75 threshold under strict `>` comparison, a real edge case in `basis_failure_probability` at this exposure scale, not a transcription error. Both written up as dated addenda in `docs/methods/hedge.md` §6 and `docs/methods/parametric.md` §4 rather than silently corrected |
+| **Preprint** (`paper/preprint.md`) | ✅ SPEC §15's full 9-section outline, every quantitative claim sourced from a real measured number already in `docs/methods/*.md`/`docs/STATUS.md` or freshly re-derived via `mq research reproduce` while writing it |
+| **README overhaul** | ✅ real results table (measured numbers only, SPEC §16's own instruction), honest "what's real vs. not" section, quickstart, layout |
+| **Architecture diagram** (`docs/architecture.md`) | ✅ a Mermaid flowchart of the real data flow (sources → DQ → index/pricing/simulator/forecasting → risk/MPR → ledger → API → dashboard), with the real gaps (bhavcopy/MJO bot-gates, no ledger mirror, M14 not started) called out on the same page |
+| **One-page summary** (`docs/SUMMARY.md`) | ✅ SPEC §16's CV-line-style pitch, measured numbers only |
+| **Not buildable by this session** | ⬜ a 2-minute demo video (needs a human to record/narrate); a public prediction-ledger mirror repo (a real, separate hosting decision); M14's public dashboard URL (needs the user's infra choice, see M14 above) |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -455,11 +469,23 @@ building it (a missing-default-export build break; a >=56M-row
 order mismatch between two independently-built pivots; a real-world
 ONI/DMI publication-lag data gap).
 
+**M15 (paper, demo, launch) is also mostly done now**: the preprint
+(`paper/preprint.md`), a real README overhaul, an architecture diagram
+(`docs/architecture.md`), a one-page summary (`docs/SUMMARY.md`), and
+-- the part that was actually broken, not just unwritten --
+`mq research reproduce`/`make reproduce`, which previously called a
+CLI command that didn't exist at all. Running it for real caught 2
+genuine reproduction discrepancies against earlier methods-note
+write-ups, reported as dated addenda rather than silently reconciled
+(see this file's M15 detail section above).
+
 **One thing still genuinely needs your decision**: M14 (deploy &
 harden) needs real infra choices (hosting provider, domain, secrets)
 only you can make -- not started. The P-vs-Q overlay stays hard-
 blocked regardless of any decision (needs real NCDEX settlement data,
-bot-gated) -- nothing to decide there, it just isn't actionable.
+bot-gated) -- nothing to decide there, it just isn't actionable. M15's
+remaining pieces (a 2-minute demo video, a public ledger-mirror repo)
+also wait on M14 or a human recording a video, not more code.
 
 Also worth considering, independent of the above: addressing the
 bhavcopy/MJO bot-gate blockers (M2's real market data, M6/M8's real

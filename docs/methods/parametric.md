@@ -82,7 +82,38 @@ Script + full output: `.scratch/parametric_demo.py` /
 `.scratch/parametric_demo.log` (gitignored, real-data-dependent, same
 pattern as other real-data demos).
 
-## 4. What's not done yet
+## 4. Re-derived for M15's `mq research reproduce` (2026-10-10) — a real discrepancy found, not papered over
+
+Re-running this exact case study (same location, same plain-default
+`delivery_rider_income_loss`, same P75 threshold choice) via the new,
+committed `mq.research.reproduce.reproduce_parametric_case_study`
+reproduces the optimized `trigger/slope/limit/premium/payout-years`
+**exactly** (843.4 / 1.0 / 10,000 / 200.1 / 15-of-31) — confirmed both
+directly and by calling the live `/v1/parametric/design` endpoint with
+identical inputs. But the **basis-failure-probability figure itself
+reproduces as 0.0 for both no-cover and optimized**, not the **0.258 ->
+0.032** stated in §3's table above.
+
+Root cause, found by inspecting the real loss array directly: ~84% of
+this location's 31 real years saturate at exactly `max_loss` under
+the exposure template's default `saturation_mm=200` (the local index's
+real deviation range at this cell runs well past 200mm in most
+years). The P75 threshold itself therefore lands on that same
+saturated value, and `mq.risk.parametric.basis_failure_probability`'s
+strict `>` comparison never counts a tied value as "exceeding" its
+own threshold — a genuine edge case in the metric at this exposure
+scale, not a transcription error in this note, and not something
+fixed here (changing a strict inequality in an already-tested,
+API-serving module deserves its own dedicated look, not a drive-by
+edit while regenerating paper figures). The qualitative finding this
+case study is built to illustrate — a well-chosen trigger range
+produces a *selective* cover (15 of 31 years, roughly the wetter half)
+rather than the degenerate near-always-pay solution §2 describes —
+still holds; only the specific 0.258/0.032 numbers don't currently
+reproduce. Reported honestly rather than silently reconciled — see the
+preprint's own limitations section (§8).
+
+## 5. What's not done yet
 
 - A real λ for the Q-measure premium — illustrative `lam=0.0` used
   throughout, same bhavcopy blocker as M6/M8/M9.

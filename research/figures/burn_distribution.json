@@ -1,0 +1,60 @@
+{
+  "burn": {
+    "es_lower_5pct": 345.2787767797713,
+    "es_upper_5pct": 1952.838912235573,
+    "mean": 905.6305876596864,
+    "median": 843.3952411748475,
+    "n": 31,
+    "p25": 647.8944972045724,
+    "p5": 449.6149323396391,
+    "p75": 1049.8615145925437,
+    "p95": 1699.0372248571366,
+    "sd": 388.5305244893653,
+    "skew": 1.1408163788785717
+  },
+  "distribution_selection": {
+    "bootstrap": {
+      "kind": "bootstrap",
+      "mean_crps": 215.0256158601136,
+      "mean_log_likelihood": null,
+      "n_folds": 31
+    },
+    "enso_climatology": {
+      "kind": "enso_climatology",
+      "mean_crps": 231.03142561459504,
+      "mean_log_likelihood": null,
+      "n_folds": 31
+    },
+    "gamma": {
+      "kind": "gamma",
+      "mean_crps": 213.15748957493327,
+      "mean_log_likelihood": -Infinity,
+      "n_folds": 31
+    },
+    "kde_cv": {
+      "kind": "kde_cv",
+      "mean_crps": 213.0082749666227,
+      "mean_log_likelihood": -7.3892863993650115,
+      "n_folds": 31
+    },
+    "kde_silverman": {
+      "kind": "kde_silverman",
+      "mean_crps": 213.5669633365955,
+      "mean_log_likelihood": -7.368366057690422,
+      "n_folds": 31
+    },
+    "lognormal": {
+      "kind": "lognormal",
+      "mean_crps": 213.96440480286176,
+      "mean_log_likelihood": -8.013377754650456,
+      "n_folds": 31
+    },
+    "weibull": {
+      "kind": "weibull",
+      "mean_crps": 213.29834269152244,
+      "mean_log_likelihood": -Infinity,
+      "n_folds": 31
+    }
+  },
+  "selected": "kde_cv"
+}

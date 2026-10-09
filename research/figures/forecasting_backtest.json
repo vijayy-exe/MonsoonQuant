@@ -1,0 +1,31 @@
+{
+  "n_training_rows": 3751,
+  "n_training_years": 31,
+  "rungs": {
+    "analog_v1": {
+      "mean_crps": 182.2679571092,
+      "model_id": "analog_v1",
+      "n_predictions": 2541
+    },
+    "clim_baseline": {
+      "mean_crps": 156.43718817664876,
+      "model_id": "clim_baseline",
+      "n_predictions": 2541
+    },
+    "enso_clim_v1": {
+      "mean_crps": 165.43834756220045,
+      "model_id": "enso_clim_v1",
+      "n_predictions": 2541
+    },
+    "lgbm_q_cqr_v1": {
+      "mean_crps": 201.91797616790606,
+      "model_id": "lgbm_q_cqr_v1",
+      "n_predictions": 2541
+    },
+    "lgbm_q_v1": {
+      "mean_crps": 194.03435184248514,
+      "model_id": "lgbm_q_v1",
+      "n_predictions": 2541
+    }
+  }
+}

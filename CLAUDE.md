@@ -55,29 +55,28 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard), M12's hardening list, and M7's live-row gap are all
-done now.** All 9 dashboard pages built, real data or an honestly
-explained empty/simplified state (including a real MapLibre basemap
-on Basis Map, no API key, and a real analog-years table on the
-Forecast page). Lighthouse ≥90/100 on every page/category. Playwright
-E2E wired into local dev (5 specs, real stack) and CI (2 of 5 —
-`hedge`/`basis` need real local IMD data a fresh CI checkout
-structurally can't have, confirmed empirically). OpenAPI export + CI
-drift check, TS codegen, anon-tier rate limiting (health-checks
-exempted), a `web` CI job: all done. `mq.forecasting.live` + `mq
-ledger write-live` produce real live rows for
-enso_clim_v1/analog_v1/lgbm_q_v1/lgbm_q_cqr_v1 (real RAINCHNNAI rows
-written as of 2026-10-03) — `clim_v1` deliberately untouched, its own
-existing M1 live-row history. Several real bugs were caught and fixed
-along the way this session (CORS, accessibility, a maplibre-gl
-worker-loading bug, a rate-limited health-check loop, an uncaught
-ledger-query error crashing a whole page, a >=56M-row dedup perf trap,
-duplicate real-time ingestion rows, a pivot column-order mismatch, a
-real ONI/DMI publication-lag data gap) — full detail in
-`docs/PROGRESS.md`'s 2026-10-09 entries, don't re-litigate here.
+**M13 (dashboard), M12's hardening list, M7's live-row gap, and M15
+(paper/README/diagram/one-pager/reproduce) are all done now.** All 9
+dashboard pages real (incl. a real MapLibre basemap + a real
+analog-years table). Lighthouse ≥90/100 on every page/category.
+Playwright E2E in local dev (5 specs) and CI (2 of 5 — the other 3
+need real local IMD data a fresh checkout can't have). OpenAPI/TS CI
+drift check, rate limiting, a `web` CI job. `mq.forecasting.live` + `mq
+ledger write-live` produce real live rows for the 4 newer forecasting
+rungs. `mq research reproduce`/`make reproduce` was fully broken
+before this (called a CLI command that didn't exist) — now real, with
+`paper/preprint.md`, `docs/architecture.md`, `docs/SUMMARY.md`, and a
+real README all written from its regenerated figures. Many real bugs
+were caught and fixed along the way this session (CORS, accessibility,
+a maplibre-gl worker bug, a rate-limited health-check loop, an uncaught
+ledger-query crash, perf/dedup traps, a pivot column-order mismatch, an
+ONI/DMI publication-lag gap, and 2 real reproduction discrepancies
+reported as dated addenda rather than reconciled) — full detail in
+`docs/PROGRESS.md`'s 2026-10-09/10 entries, don't re-litigate here.
 
 **One thing is blocked on your call, not effort**: M14 (deploy &
-harden) needs real infra choices (host, domain, secrets). The P-vs-Q
+harden) needs real infra choices (host, domain, secrets) — M15's demo
+video and ledger-mirror repo wait on this too. The P-vs-Q
 overlay stays hard-blocked regardless (real NCDEX settlement data,
 bot-gated) — nothing to decide there.
 
