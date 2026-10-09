@@ -43,7 +43,9 @@ export default async function BasisPage({
         Correlation, hedge effectiveness and tail dependence between the
         official index and real IMD rainfall at each nearby grid cell
         (M10). A real on-demand run, cached by request — first load can
-        take a few seconds.
+        take a few seconds. Basemap: MapLibre&apos;s free public demo
+        tiles (no API key/account) — a real deployment would use a
+        provider with an SLA.
       </p>
 
       {basis && basis.data.features.length > 0 ? (

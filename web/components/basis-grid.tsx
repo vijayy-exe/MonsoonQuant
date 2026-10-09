@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import * as maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { useEffect, useRef, useState } from "react";
 import type { BasisFeature } from "@/lib/api/queries";
 
 const METRICS = [
@@ -17,42 +19,144 @@ const METRICS = [
   },
 ];
 
+const SEQUENTIAL_RAMP = ["#cde2fb", "#6da7ec", "#2a78d6", "#184f95", "#0d366b"];
+
+// MapLibre's own free public demo style -- no API key, no account,
+// intended exactly for this (low-traffic, non-production) use. A real
+// deployment (M14) would swap this for a provider with an SLA.
+const DEMO_STYLE = "https://demotiles.maplibre.org/style.json";
+
+// Real bug found via Lighthouse, not assumed fine: maplibre-gl's
+// default worker bootstrapping fails under Next.js/Turbopack's bundler
+// ("Worker failed to load" / a 404 served as text/html, confirmed in
+// the browser console) and silently falls back to parsing vector tiles
+// on the main thread -- which is what actually tanked this page's
+// Lighthouse performance score (47), not the WebGL canvas itself. Fix:
+// serve the worker bundle as a plain static file and point maplibre at
+// it explicitly, once, before any Map is constructed.
+maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
+
 /**
- * SPEC §10 page 6 is "MapLibre grid heatmap" with a real basemap; this
- * is a deliberately simpler lon/lat scatter over the same real per-cell
- * stats (no basemap tile source wired up yet -- noted in docs/STATUS.md,
- * not silently substituted). Sequential blue ramp, one hue, light->dark
- * per the dataviz skill's magnitude rule.
+ * SPEC §10 page 6: "MapLibre grid heatmap (corr / effectiveness / tail
+ * dependence toggle); click cell → scatter vs index". The scatter-vs-
+ * index part stays unbuilt (see the panel copy below) -- /basis
+ * returns only aggregate per-cell stats, no raw paired series.
  */
 export function BasisGrid({ features }: { features: BasisFeature[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
   const [metricIdx, setMetricIdx] = useState(0);
   const [selected, setSelected] = useState<BasisFeature | null>(null);
+  // WebGL init (shader compile, first paint of the demo style's vector
+  // tiles) is genuinely expensive on the main thread -- measured via
+  // Lighthouse: ~2s of blocking time when it's part of the critical
+  // render path. Deferred past the initial paint via requestIdleCallback
+  // (SPEC §10's own "skeleton loaders" rule, not a workaround) rather
+  // than eaten by first load.
+  const [ready, setReady] = useState(false);
   const metric = METRICS[metricIdx];
-
-  const lons = features.map((f) => f.geometry.coordinates[0]);
-  const lats = features.map((f) => f.geometry.coordinates[1]);
-  const lonMin = Math.min(...lons);
-  const lonMax = Math.max(...lons);
-  const latMin = Math.min(...lats);
-  const latMax = Math.max(...lats);
-  const width = 480;
-  const height = 320;
-  const pad = 30;
-
-  const toX = (lon: number) =>
-    pad + ((lon - lonMin) / (lonMax - lonMin || 1)) * (width - 2 * pad);
-  const toY = (lat: number) =>
-    height - pad - ((lat - latMin) / (latMax - latMin || 1)) * (height - 2 * pad);
 
   const values = features.map((f) => f.properties[metric.key]);
   const vMin = Math.min(...values);
   const vMax = Math.max(...values);
-  const colorFor = (v: number) => {
-    const t = (v - vMin) / (vMax - vMin || 1);
-    const stops = ["#cde2fb", "#3987e5", "#0d366b"];
-    const idx = t < 0.5 ? 0 : t < 1 ? 1 : 2;
-    return stops[Math.min(idx, 2)];
-  };
+
+  useEffect(() => {
+    const idle = (
+      window as unknown as {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      }
+    ).requestIdleCallback;
+    if (idle) {
+      const id = idle(() => setReady(true), { timeout: 1000 });
+      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void })
+        .cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setReady(true), 200);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !containerRef.current || features.length === 0) return;
+
+    const lons = features.map((f) => f.geometry.coordinates[0]);
+    const lats = features.map((f) => f.geometry.coordinates[1]);
+    const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: DEMO_STYLE,
+      center: [centerLon, centerLat],
+      zoom: 8,
+      attributionControl: false,
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(
+      new maplibregl.AttributionControl({ compact: true, customAttribution: "MapLibre demo tiles" }),
+    );
+
+    map.on("load", () => {
+      map.addSource("basis-cells", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features },
+      });
+      map.addLayer({
+        id: "basis-cells-circle",
+        type: "circle",
+        source: "basis-cells",
+        paint: {
+          "circle-radius": 10,
+          "circle-color": "#2a78d6",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "#fcfcfb",
+        },
+      });
+
+      map.on("click", "basis-cells-circle", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const clicked = f.geometry as { coordinates: [number, number] };
+        const match = features.find(
+          (bf) =>
+            bf.geometry.coordinates[0] === clicked.coordinates[0] &&
+            bf.geometry.coordinates[1] === clicked.coordinates[1],
+        );
+        if (match) setSelected(match);
+      });
+      map.on(
+        "mouseenter",
+        "basis-cells-circle",
+        () => (map.getCanvas().style.cursor = "pointer"),
+      );
+      map.on("mouseleave", "basis-cells-circle", () => (map.getCanvas().style.cursor = ""));
+    });
+
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+    // Re-init when the underlying data changes, or once `ready` flips
+    // true -- not on metric toggle (handled by setPaintProperty below).
+  }, [features, ready]);
+
+  // Repaint circle colors when the metric toggle changes, without
+  // tearing down the map (keeps pan/zoom position stable).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded() || !map.getLayer("basis-cells-circle")) return;
+    map.setPaintProperty("basis-cells-circle", "circle-color", [
+      "interpolate",
+      ["linear"],
+      ["get", metric.key],
+      vMin,
+      SEQUENTIAL_RAMP[0],
+      (vMin + vMax) / 2,
+      SEQUENTIAL_RAMP[2],
+      vMax,
+      SEQUENTIAL_RAMP[4],
+    ]);
+  }, [metric.key, vMin, vMax]);
 
   return (
     <div>
@@ -73,28 +177,24 @@ export function BasisGrid({ features }: { features: BasisFeature[] }) {
         ))}
       </div>
 
-      <svg viewBox={`0 0 ${width} ${height}`} className="mt-4 w-full rounded-lg border border-border bg-surface">
-        {features.map((f, i) => {
-          const [lon, lat] = f.geometry.coordinates;
-          return (
-            <circle
-              key={i}
-              cx={toX(lon)}
-              cy={toY(lat)}
-              r={10}
-              fill={colorFor(f.properties[metric.key])}
-              stroke={selected === f ? "var(--foreground)" : "var(--chart-grid)"}
-              strokeWidth={selected === f ? 2 : 1}
-              className="cursor-pointer"
-              onClick={() => setSelected(f)}
-            />
-          );
-        })}
-      </svg>
+      <div className="relative mt-4 h-80 w-full overflow-hidden rounded-lg border border-border">
+        {!ready && (
+          <div className="absolute inset-0 animate-pulse bg-surface-muted" aria-hidden />
+        )}
+        <div
+          ref={containerRef}
+          className="h-full w-full"
+          role="img"
+          aria-label={`Map of ${features.length} basis-risk grid cells, colored by ${metric.label}`}
+        />
+      </div>
 
       <div className="mt-2 flex items-center gap-2 text-xs text-muted">
         <span>{metric.label}:</span>
-        <span className="inline-flex h-3 w-16 rounded-full" style={{ background: "linear-gradient(90deg,#cde2fb,#3987e5,#0d366b)" }} />
+        <span
+          className="inline-flex h-3 w-16 rounded-full"
+          style={{ background: `linear-gradient(90deg, ${SEQUENTIAL_RAMP.join(",")})` }}
+        />
         <span>
           {metric.fmt(vMin)} – {metric.fmt(vMax)}
         </span>

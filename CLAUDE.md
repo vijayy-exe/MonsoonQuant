@@ -67,8 +67,12 @@ Lab's client-side form became the first real browser→API call) —
 fixed via `Settings.web_origins` (`src/mq/config.py`). Also caught 2
 real accessibility bugs via Lighthouse itself (heading order, an
 aria-label/visible-text mismatch, an invalid `<dl>`), all fixed. Basis
-Map (page 6) is a simpler lon/lat scatter over real per-cell stats,
-not SPEC's literal MapLibre basemap. **M12 hardening is also now
+Map (page 6) now has a real MapLibre GL map over MapLibre's free public
+demo tiles (no key/account), not a simplified scatter — caught and
+fixed a real bug along the way (the worker script failed to load under
+Turbopack and silently blocked the main thread; fixed by serving it as
+a static file + `setWorkerUrl()`, then deferring init past the critical
+render path via `requestIdleCallback`). **M12 hardening is also now
 done**: OpenAPI export + CI drift check (`make web-openapi-check`), TS
 codegen, anon-tier rate limiting (60/min, `src/mq/api/ratelimit.py` —
 no API-key tier, no key-issuance system exists), a `web` CI job.
