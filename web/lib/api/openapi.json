@@ -1,0 +1,3546 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MonsoonQuant API",
+    "description": "Research analytics for India's exchange-traded rainfall futures. Not investment advice.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_HealthData_"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/health/data": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Data",
+        "operationId": "health_data_v1_health_data_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataFreshnessData_"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/contracts": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "List Contracts",
+        "operationId": "list_contracts_v1_contracts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ContractsListData_"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/contracts/{code}/spec": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Get Contract Spec",
+        "operationId": "get_contract_spec_v1_contracts__code__spec_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ContractSpecData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/valuation": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Valuation",
+        "operationId": "get_valuation_v1_series__series_id__valuation_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "burn",
+              "title": "Method"
+            }
+          },
+          {
+            "name": "measure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "P",
+              "title": "Measure"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ValuationData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/valuations/compare": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Compare Valuations",
+        "description": "SPEC's \"all 4 methods side-by-side\" \u2014 currently returns whichever\nmethods/measures actually have real rows written for this series\n(burn and dist, per M4; conditioned/mpr rungs not yet written to\nthis table \u2014 see docs/STATUS.md), not a fabricated 4-method set.\n\nEach method's own MOST RECENT row, not \"whatever was written on the\nliteral same calendar day\" \u2014 real data showed burn and dist were\nwritten a day apart for RAINCHNNAI (M4 ran them in separate passes),\nso a same-day join would have silently dropped one method entirely\nwhenever `as_of` isn't given. `as_of`, when given, bounds every\nmethod's own latest row to \"at or before that date\" rather than\nrequiring an exact match.",
+        "operationId": "compare_valuations_v1_series__series_id__valuations_compare_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ValuationsCompareData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/index": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Index Path",
+        "description": "The real M3 `index_values` rows: proxy (satellite/model-derived)\nvs. official index value per observed day, plus the proxy's own\nerror against the official value where both exist.\n\n`index_values` is keyed (series_id, obs_date, as_of_date) because a\ngiven obs_date's proxy estimate can be revised as more data arrives\n-- same \"each day's own most recent snapshot\" rule as\n`valuations/compare` above, bounded by `as_of` when given rather than\nrequiring an exact match.",
+        "operationId": "get_index_path_v1_series__series_id__index_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_IndexPathData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/quotes": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Quotes",
+        "description": "Real `market_quotes` rows (SPEC \u00a79.2: \"settle, volume, OI\"). Will\nlegitimately return an empty list for both real series right now --\nNCDEX's bhavcopy live fetch stays bot-gated (M2, documented policy),\nso no real settlement data has ever been ingested; this is reported\nhonestly as zero rows, not backfilled with synthetic quotes.",
+        "operationId": "get_quotes_v1_series__series_id__quotes_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_QuotesData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/mpr": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Mpr",
+        "description": "Real `mpr_estimates` rows (SPEC \u00a79.2: \"lambda time series + CIs +\nliquidity\"), M6's Wang/Esscher calibration output. Will legitimately\nreturn an empty list right now: M6's demo ran against illustrative\nsettle data only (no real NCDEX settlement exists yet, same bhavcopy\nbot-gate as `quotes` above), so nothing has been written to this\ntable against real market data -- reported honestly, not faked.",
+        "operationId": "get_mpr_v1_series__series_id__mpr_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "transform",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transform"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_MPRData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/forecast": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Forecast",
+        "description": "Quantiles + fan-chart data (SPEC \u00a79.2) straight from the real,\nhash-chained `prediction_ledger` (M7's backtest rows) -- the same\nsource `/v1/ledger` reads, just scoped to one series and shaped for\na fan chart (one quantile set per as_of_date) instead of raw ledger\nrows. The ledger is keyed by `contract_code`, not `series_id` (a\nforecast target like \"remaining season rainfall\" applies to the\nwhole contract, not one listed expiry), so `series_id` is resolved\nto its `contract_code` via the real `contracts` table first.",
+        "operationId": "get_forecast_v1_series__series_id__forecast_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ForecastData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/basis": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Basis",
+        "description": "GeoJSON grid metrics (SPEC \u00a79.2) -- a real, on-demand run of M10's\nbasis-risk engine for this series' own contract spec (there's no\n`basis_results` table; the real M10 run, `docs/methods/basis.md`,\ncovered 12 real IMD grid cells for RAINCHNNAI's ~1 deg box). Cached\nby request hash (series_id, as_of, box_deg) after a real, measured\n~48s uncached run -- see `_basis_cache` above for why.\n\n`box_deg` controls the half-width of the bounding box (degrees)\naround the contract's own station(s), default 0.5 deg to match the\nreal M10 run; the real IMD grid's own 0.25 deg native spacing means\nthis box typically yields a handful to a few dozen cells, not an\nunbounded scan.",
+        "operationId": "get_basis_v1_series__series_id__basis_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "box_deg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 2.0,
+              "exclusiveMinimum": 0,
+              "default": 0.5,
+              "title": "Box Deg"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ledger/verify": {
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Ledger Verify",
+        "operationId": "ledger_verify_v1_ledger_verify_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_VerifyData_"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ledger": {
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "List Ledger",
+        "operationId": "list_ledger_v1_ledger_get",
+        "parameters": [
+          {
+            "name": "series",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Series"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LedgerRowsData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/hedge": {
+      "post": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Post Hedge",
+        "description": "Real M9 hedge optimisation: min-variance AND CVaR95 positions for\na candidate exposure location, against the real contract index.\nCached by request hash (SPEC \u00a79.3).\n\n**No position constraints by default -- and that can matter a lot\nfor `cvar95`.** `docs/methods/hedge.md` documents a real finding:\nthe real RAINCHNNAI index has been positive in all 31 historical\nseasons, so an *unconstrained* CVaR95 minimization has no interior\noptimum and genuinely wants to short without limit -- confirmed live\nvia this endpoint itself (an unconstrained request lands at\n`LotConstraints`' own 10,000-lot fallback cap with an extreme CVaR\nfigure). This is the real, correct LP answer to an unconstrained\nquestion, not sanitized or capped by the API -- pass `constraints`\n(e.g. `max_order_lots`, `margin_budget`) for a realistic position.",
+        "operationId": "post_hedge_v1_hedge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HedgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_HedgeResponseData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parametric/design": {
+      "post": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Post Parametric Design",
+        "description": "Real M11 parametric-cover optimisation (SPEC \u00a79.2): grid search +\nNelder-Mead refine over `(trigger, slope, limit)` to minimize\nbasis-failure probability subject to a premium budget, against a\nreal candidate location's real loss sample and the real official\nindex -- `mq.risk.parametric.optimize_cover` directly, no new\npricing math. Cached by request hash (SPEC \u00a79.3).\n\nExposure is the same illustrative-on-real-data pattern as `/v1/hedge`\n(SPEC's own \u00a77.11 posture): a real location's real CDR reconstruction\nrun through one of SPEC's named exposure templates. The real M11 run\n(`docs/methods/parametric.md`) found an unrestricted trigger grid lets\nthe optimizer find a degenerate near-always-pay cover -- the default\n`trigger_grid` here (median-to-max of the real index) avoids that by\nthe same restriction the real run used; passing a grid that starts\nbelow the median reproduces the degenerate case, deliberately not\nguarded against here since it's a legitimate optimum of the literal\nobjective, not an error.",
+        "operationId": "post_parametric_design_v1_parametric_design_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParametricDesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ParametricDesignData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/scenarios/run": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Post Scenarios Run",
+        "description": "Real M11 scenario lab: each named shock (ENSO/IOD presets, a\ncloudburst bump, or a real historical-year ONI/DMI analog) re-runs\nthe real simulator + Greeks under the shocked covariates, against a\nreal fitted chain model. Cached by request hash (SPEC \u00a79.3);\n`n_paths` capped at 200k per SPEC.",
+        "operationId": "post_scenarios_run_v1_scenarios_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenariosRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ScenariosRunData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{series_id}/greeks": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Greeks",
+        "description": "Real M9 Greeks: delta/gamma via common random numbers (exact CRN\npairing -- structurally delta=1.0/gamma=0 for this CDR index, see\n`docs/methods/greeks.md`), theta via the two partial-pairing bump\nscenarios (no-rain-day / climatological-day), each reporting its own\nstandard error and SE-as-fraction-of-value per SPEC's SE<5% bar.\ntheta is omitted (not computed) when `start_date >= period_end`,\nsince there's no remaining season to bump a day into.\n\n`n_paths` capped at 200k per SPEC; higher `n_paths` is what actually\nlets theta meet the SE<5% bar in practice (`docs/methods/greeks.md`'s\nreal run needed ~1,000,000 paths via the C++ core at n_paths that\nlarge -- this route still uses the NumPy-level `mq.risk.greeks`\nfunctions, so very large `n_paths` here will be proportionally\nslower; no request-hash cache yet, unlike the POSTs, since repeated\nidentical GETs are a smaller concern than this endpoint's real\nper-call cost).",
+        "operationId": "get_greeks_v1_series__series_id__greeks_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "observed_to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Observed To Date"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "name": "start_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Start State"
+            }
+          },
+          {
+            "name": "n_paths",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200000,
+              "exclusiveMinimum": 0,
+              "default": 20000,
+              "title": "N Paths"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 42,
+              "title": "Seed"
+            }
+          },
+          {
+            "name": "bump_mm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 10.0,
+              "title": "Bump Mm"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_GreeksData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/track-record": {
+      "get": {
+        "tags": [
+          "track-record"
+        ],
+        "summary": "Get Track Record",
+        "description": "Real M7 walk-forward backtest, all 5 ladder rungs (clim_baseline,\nenso_clim_v1, analog_v1, lgbm_q_v1, lgbm_q_cqr_v1), against real IMD\nrainfall + real ONI/DMI. CRPSS is reported honestly -- M7's own real\nrun found every newer rung underperforms climatology at n=31 seasons\n(`docs/methods/forecasting.md`), and this live re-run is expected to\nreproduce that, not a nicer-looking number. Cached by\n(contract_code, as_of).",
+        "operationId": "get_track_record_v1_track_record_get",
+        "parameters": [
+          {
+            "name": "contract_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "RAINCHNNAI is the only contract with real walk-forward training-row support right now (RAINMUMBAI's 2026 season is closed with no forecasting-ladder history) -- see docs/STATUS.md",
+              "default": "RAINCHNNAI",
+              "title": "Contract Code"
+            },
+            "description": "RAINCHNNAI is the only contract with real walk-forward training-row support right now (RAINMUMBAI's 2026 season is closed with no forecasting-ladder history) -- see docs/STATUS.md"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TrackRecordData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lineage": {
+      "get": {
+        "tags": [
+          "lineage"
+        ],
+        "summary": "Get Lineage",
+        "description": "Full real data/model lineage for one series: the contract spec's\nown version + real source document IDs, every real `valuations` row\nwith its (currently always-null, see module docstring) `run_id`,\nthe latest real `index_values` snapshot's `data_version`, and every\nreal `prediction_ledger` row for the series' own contract (richer\nlineage: model_id/model_version/data_version/hashes). `as_of`, when\ngiven, bounds every source to \"at or before that date\".",
+        "operationId": "get_lineage_v1_lineage_get",
+        "parameters": [
+          {
+            "name": "series",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "series_id, e.g. RAINCHNNAI-OCT26",
+              "title": "Series"
+            },
+            "description": "series_id, e.g. RAINCHNNAI-OCT26"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LineageData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChainBreakData": {
+        "properties": {
+          "row_id": {
+            "type": "integer",
+            "title": "Row Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row_id",
+          "reason"
+        ],
+        "title": "ChainBreakData"
+      },
+      "ContractSpecData": {
+        "properties": {
+          "contract_code": {
+            "type": "string",
+            "title": "Contract Code"
+          },
+          "spec_version": {
+            "type": "string",
+            "title": "Spec Version"
+          },
+          "yaml": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Yaml"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_code",
+          "spec_version",
+          "yaml",
+          "source_ids"
+        ],
+        "title": "ContractSpecData"
+      },
+      "ContractsListData": {
+        "properties": {
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ListedSeriesData"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series"
+        ],
+        "title": "ContractsListData"
+      },
+      "Cvar95Result": {
+        "properties": {
+          "h_star": {
+            "type": "number",
+            "title": "H Star"
+          },
+          "lots": {
+            "type": "integer",
+            "title": "Lots"
+          },
+          "h_realized": {
+            "type": "number",
+            "title": "H Realized"
+          },
+          "cvar_95": {
+            "type": "number",
+            "title": "Cvar 95"
+          },
+          "do_nothing_cvar_95": {
+            "type": "number",
+            "title": "Do Nothing Cvar 95"
+          },
+          "var_95": {
+            "type": "number",
+            "title": "Var 95"
+          }
+        },
+        "type": "object",
+        "required": [
+          "h_star",
+          "lots",
+          "h_realized",
+          "cvar_95",
+          "do_nothing_cvar_95",
+          "var_95"
+        ],
+        "title": "Cvar95Result"
+      },
+      "DataFreshnessData": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceFreshness"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sources"
+        ],
+        "title": "DataFreshnessData"
+      },
+      "Envelope_ContractSpecData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContractSpecData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ContractSpecData]"
+      },
+      "Envelope_ContractsListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContractsListData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ContractsListData]"
+      },
+      "Envelope_DataFreshnessData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataFreshnessData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[DataFreshnessData]"
+      },
+      "Envelope_ForecastData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ForecastData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ForecastData]"
+      },
+      "Envelope_GreeksData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GreeksData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[GreeksData]"
+      },
+      "Envelope_HealthData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HealthData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[HealthData]"
+      },
+      "Envelope_HedgeResponseData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HedgeResponseData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[HedgeResponseData]"
+      },
+      "Envelope_IndexPathData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IndexPathData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[IndexPathData]"
+      },
+      "Envelope_LedgerRowsData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LedgerRowsData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[LedgerRowsData]"
+      },
+      "Envelope_LineageData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LineageData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[LineageData]"
+      },
+      "Envelope_MPRData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MPRData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[MPRData]"
+      },
+      "Envelope_ParametricDesignData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ParametricDesignData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ParametricDesignData]"
+      },
+      "Envelope_QuotesData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QuotesData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[QuotesData]"
+      },
+      "Envelope_ScenariosRunData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ScenariosRunData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ScenariosRunData]"
+      },
+      "Envelope_TrackRecordData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrackRecordData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[TrackRecordData]"
+      },
+      "Envelope_ValuationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValuationData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ValuationData]"
+      },
+      "Envelope_ValuationsCompareData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValuationsCompareData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[ValuationsCompareData]"
+      },
+      "Envelope_VerifyData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VerifyData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[VerifyData]"
+      },
+      "Envelope_dict_str__Any__": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[dict[str, Any]]"
+      },
+      "ForecastData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "contract_code": {
+            "type": "string",
+            "title": "Contract Code"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "contract_code",
+          "rows"
+        ],
+        "title": "ForecastData"
+      },
+      "ForecastRow": {
+        "properties": {
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "quantiles": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Quantiles"
+          },
+          "fair_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Value"
+          },
+          "fair_value_lo90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Value Lo90"
+          },
+          "fair_value_hi90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Value Hi90"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of_date",
+          "model_id",
+          "model_version",
+          "target",
+          "quantiles",
+          "fair_value",
+          "fair_value_lo90",
+          "fair_value_hi90"
+        ],
+        "title": "ForecastRow"
+      },
+      "GreekResultData": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "se": {
+            "type": "number",
+            "title": "Se"
+          },
+          "se_fraction": {
+            "type": "number",
+            "title": "Se Fraction"
+          },
+          "pairing": {
+            "type": "string",
+            "title": "Pairing"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "se",
+          "se_fraction",
+          "pairing",
+          "note"
+        ],
+        "title": "GreekResultData"
+      },
+      "GreeksData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "n_paths": {
+            "type": "integer",
+            "title": "N Paths"
+          },
+          "observed_to_date": {
+            "type": "number",
+            "title": "Observed To Date"
+          },
+          "start_date": {
+            "type": "string",
+            "title": "Start Date"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/GreekResultData"
+          },
+          "gamma": {
+            "$ref": "#/components/schemas/GreekResultData"
+          },
+          "theta_no_rain_day": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GreekResultData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "theta_climatological_day": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GreekResultData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "n_paths",
+          "observed_to_date",
+          "start_date",
+          "period_end",
+          "delta",
+          "gamma",
+          "theta_no_rain_day",
+          "theta_climatological_day"
+        ],
+        "title": "GreeksData"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthData": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "HealthData"
+      },
+      "HedgeConstraints": {
+        "properties": {
+          "max_order_lots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Lots"
+          },
+          "position_limit_lots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Limit Lots"
+          },
+          "margin_budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Budget"
+          },
+          "margin_per_lot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Per Lot"
+          },
+          "max_notional": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Notional"
+          },
+          "notional_per_lot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notional Per Lot"
+          },
+          "long_allowed": {
+            "type": "boolean",
+            "title": "Long Allowed",
+            "default": true
+          },
+          "short_allowed": {
+            "type": "boolean",
+            "title": "Short Allowed",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "HedgeConstraints"
+      },
+      "HedgeRequest": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "location_lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Location Lat"
+          },
+          "location_lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Location Lon"
+          },
+          "exposure_template": {
+            "type": "string",
+            "enum": [
+              "delivery_rider",
+              "crop_yield",
+              "event_cancellation",
+              "construction_downtime"
+            ],
+            "title": "Exposure Template",
+            "default": "delivery_rider"
+          },
+          "template_params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Template Params"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiplier",
+            "description": "INR per index point; defaults to the contract's own spec value"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/HedgeConstraints"
+          },
+          "alpha": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Alpha",
+            "default": 0.95
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "location_lat",
+          "location_lon"
+        ],
+        "title": "HedgeRequest"
+      },
+      "HedgeResponseData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "n_years": {
+            "type": "integer",
+            "title": "N Years"
+          },
+          "location": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Location"
+          },
+          "exposure_template": {
+            "type": "string",
+            "title": "Exposure Template"
+          },
+          "multiplier": {
+            "type": "number",
+            "title": "Multiplier"
+          },
+          "min_variance": {
+            "$ref": "#/components/schemas/MinVarianceResult"
+          },
+          "cvar95": {
+            "$ref": "#/components/schemas/Cvar95Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "n_years",
+          "location",
+          "exposure_template",
+          "multiplier",
+          "min_variance",
+          "cvar95"
+        ],
+        "title": "HedgeResponseData"
+      },
+      "IndexLineage": {
+        "properties": {
+          "latest_obs_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Obs Date"
+          },
+          "latest_as_of_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest As Of Date"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "latest_obs_date",
+          "latest_as_of_date",
+          "data_version"
+        ],
+        "title": "IndexLineage"
+      },
+      "IndexPathData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/IndexPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "points"
+        ],
+        "title": "IndexPathData"
+      },
+      "IndexPoint": {
+        "properties": {
+          "obs_date": {
+            "type": "string",
+            "title": "Obs Date"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "proxy_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Value"
+          },
+          "official_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Value"
+          },
+          "abs_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abs Error"
+          },
+          "pct_lpa_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Lpa Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "obs_date",
+          "as_of_date",
+          "proxy_value",
+          "official_value",
+          "abs_error",
+          "pct_lpa_error"
+        ],
+        "title": "IndexPoint"
+      },
+      "LedgerLineage": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "issued_at": {
+            "type": "string",
+            "title": "Issued At"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "data_version": {
+            "type": "string",
+            "title": "Data Version"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "payload_sha256": {
+            "type": "string",
+            "title": "Payload Sha256"
+          },
+          "row_hash": {
+            "type": "string",
+            "title": "Row Hash"
+          },
+          "prev_hash": {
+            "type": "string",
+            "title": "Prev Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "issued_at",
+          "as_of_date",
+          "model_id",
+          "model_version",
+          "data_version",
+          "target",
+          "payload_sha256",
+          "row_hash",
+          "prev_hash"
+        ],
+        "title": "LedgerLineage"
+      },
+      "LedgerRowData": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "contract_code": {
+            "type": "string",
+            "title": "Contract Code"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "row_hash": {
+            "type": "string",
+            "title": "Row Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "contract_code",
+          "model_id",
+          "model_version",
+          "as_of_date",
+          "target",
+          "row_hash"
+        ],
+        "title": "LedgerRowData"
+      },
+      "LedgerRowsData": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerRowData"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "title": "LedgerRowsData"
+      },
+      "LineageData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "contract_code": {
+            "type": "string",
+            "title": "Contract Code"
+          },
+          "spec_version": {
+            "type": "string",
+            "title": "Spec Version"
+          },
+          "spec_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Spec Source Ids"
+          },
+          "valuations": {
+            "items": {
+              "$ref": "#/components/schemas/ValuationLineage"
+            },
+            "type": "array",
+            "title": "Valuations"
+          },
+          "index": {
+            "$ref": "#/components/schemas/IndexLineage"
+          },
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerLineage"
+            },
+            "type": "array",
+            "title": "Ledger"
+          },
+          "model_runs_note": {
+            "type": "string",
+            "title": "Model Runs Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "contract_code",
+          "spec_version",
+          "spec_source_ids",
+          "valuations",
+          "index",
+          "ledger",
+          "model_runs_note"
+        ],
+        "title": "LineageData"
+      },
+      "ListedSeriesData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "contract_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Code"
+          },
+          "spec_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spec Version"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "contract_code",
+          "spec_version",
+          "period_start",
+          "period_end",
+          "expiry",
+          "status"
+        ],
+        "title": "ListedSeriesData"
+      },
+      "MPRData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MPRPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "points"
+        ],
+        "title": "MPRData"
+      },
+      "MPRPoint": {
+        "properties": {
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "transform": {
+            "type": "string",
+            "title": "Transform"
+          },
+          "lambda_": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lambda"
+          },
+          "ci_lo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Lo"
+          },
+          "ci_hi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Hi"
+          },
+          "method_ci": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Ci"
+          },
+          "days_to_expiry": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days To Expiry"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "open_interest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Interest"
+          },
+          "n_obs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Obs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of_date",
+          "transform",
+          "lambda_",
+          "ci_lo",
+          "ci_hi",
+          "method_ci",
+          "days_to_expiry",
+          "volume",
+          "open_interest",
+          "n_obs"
+        ],
+        "title": "MPRPoint"
+      },
+      "Meta": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "spec_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spec Version"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic",
+            "default": false
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer",
+            "default": "Research analytics. Not investment advice."
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at"
+        ],
+        "title": "Meta"
+      },
+      "MinVarianceResult": {
+        "properties": {
+          "h_star": {
+            "type": "number",
+            "title": "H Star"
+          },
+          "lots": {
+            "type": "integer",
+            "title": "Lots"
+          },
+          "h_realized": {
+            "type": "number",
+            "title": "H Realized"
+          },
+          "hedge_effectiveness": {
+            "type": "number",
+            "title": "Hedge Effectiveness"
+          },
+          "residual_variance": {
+            "type": "number",
+            "title": "Residual Variance"
+          },
+          "do_nothing_variance": {
+            "type": "number",
+            "title": "Do Nothing Variance"
+          },
+          "basis_contribution": {
+            "type": "number",
+            "title": "Basis Contribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "h_star",
+          "lots",
+          "h_realized",
+          "hedge_effectiveness",
+          "residual_variance",
+          "do_nothing_variance",
+          "basis_contribution"
+        ],
+        "title": "MinVarianceResult"
+      },
+      "OptimizedCoverResult": {
+        "properties": {
+          "trigger": {
+            "type": "number",
+            "title": "Trigger"
+          },
+          "slope": {
+            "type": "number",
+            "title": "Slope"
+          },
+          "limit": {
+            "type": "number",
+            "title": "Limit"
+          },
+          "premium": {
+            "type": "number",
+            "title": "Premium"
+          },
+          "basis_failure_probability": {
+            "type": "number",
+            "title": "Basis Failure Probability"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged"
+          },
+          "n_grid_evaluated": {
+            "type": "integer",
+            "title": "N Grid Evaluated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trigger",
+          "slope",
+          "limit",
+          "premium",
+          "basis_failure_probability",
+          "converged",
+          "n_grid_evaluated"
+        ],
+        "title": "OptimizedCoverResult"
+      },
+      "ParametricDesignData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "n_years": {
+            "type": "integer",
+            "title": "N Years"
+          },
+          "location": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Location"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "loss_threshold_used": {
+            "type": "number",
+            "title": "Loss Threshold Used"
+          },
+          "no_cover_basis_failure_probability": {
+            "type": "number",
+            "title": "No Cover Basis Failure Probability"
+          },
+          "optimized": {
+            "$ref": "#/components/schemas/OptimizedCoverResult"
+          },
+          "payout_nonzero_years": {
+            "type": "integer",
+            "title": "Payout Nonzero Years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "n_years",
+          "location",
+          "direction",
+          "loss_threshold_used",
+          "no_cover_basis_failure_probability",
+          "optimized",
+          "payout_nonzero_years"
+        ],
+        "title": "ParametricDesignData"
+      },
+      "ParametricDesignRequest": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "location_lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Location Lat"
+          },
+          "location_lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Location Lon"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "wet",
+              "dry"
+            ],
+            "title": "Direction",
+            "default": "wet"
+          },
+          "exposure_template": {
+            "type": "string",
+            "enum": [
+              "delivery_rider",
+              "crop_yield",
+              "event_cancellation",
+              "construction_downtime"
+            ],
+            "title": "Exposure Template",
+            "default": "delivery_rider"
+          },
+          "template_params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Template Params"
+          },
+          "loss_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Threshold",
+            "description": "Defaults to the P75 (worst-quartile) of the real loss sample"
+          },
+          "budget": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Budget",
+            "description": "Premium budget"
+          },
+          "lam": {
+            "type": "number",
+            "title": "Lam",
+            "description": "Wang-transform risk parameter (0 = physical measure)",
+            "default": 0.0
+          },
+          "loading": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Loading",
+            "default": 0.0
+          },
+          "trigger_grid": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Grid",
+            "description": "Defaults to 8 points from the real index's own median to its max -- SPEC's real finding (docs/methods/parametric.md): an unrestricted grid starting at the index's minimum lets the optimizer find a degenerate near-always-pay cover"
+          },
+          "slope_grid": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Slope Grid"
+          },
+          "limit_grid": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Limit Grid"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "location_lat",
+          "location_lon",
+          "budget"
+        ],
+        "title": "ParametricDesignRequest"
+      },
+      "PitHistogram": {
+        "properties": {
+          "bin_edges": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bin Edges"
+          },
+          "counts": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bin_edges",
+          "counts"
+        ],
+        "title": "PitHistogram"
+      },
+      "QuoteRow": {
+        "properties": {
+          "trade_date": {
+            "type": "string",
+            "title": "Trade Date"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close"
+          },
+          "settle": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settle"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "open_interest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Interest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "settle",
+          "volume",
+          "open_interest"
+        ],
+        "title": "QuoteRow"
+      },
+      "QuotesData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteRow"
+            },
+            "type": "array",
+            "title": "Quotes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "quotes"
+        ],
+        "title": "QuotesData"
+      },
+      "RungResult": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "n_predictions": {
+            "type": "integer",
+            "title": "N Predictions"
+          },
+          "mean_crps": {
+            "type": "number",
+            "title": "Mean Crps"
+          },
+          "crpss_vs_baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crpss Vs Baseline"
+          },
+          "mean_pinball_by_q": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Mean Pinball By Q"
+          },
+          "coverage_by_level": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Coverage By Level"
+          },
+          "pit_histogram": {
+            "$ref": "#/components/schemas/PitHistogram"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id",
+          "n_predictions",
+          "mean_crps",
+          "crpss_vs_baseline",
+          "mean_pinball_by_q",
+          "coverage_by_level",
+          "pit_histogram"
+        ],
+        "title": "RungResult"
+      },
+      "ScenarioRunResultData": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "valuations": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Valuations"
+          },
+          "greeks": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Greeks"
+          },
+          "hedge_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hedge Pnl"
+          },
+          "hedge_pnl_note": {
+            "type": "string",
+            "title": "Hedge Pnl Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "valuations",
+          "greeks",
+          "hedge_pnl",
+          "hedge_pnl_note"
+        ],
+        "title": "ScenarioRunResultData"
+      },
+      "ScenariosRunData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "n_paths": {
+            "type": "integer",
+            "title": "N Paths"
+          },
+          "observed_to_date": {
+            "type": "number",
+            "title": "Observed To Date"
+          },
+          "start_date": {
+            "type": "string",
+            "title": "Start Date"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "overdispersion_sd": {
+            "type": "number",
+            "title": "Overdispersion Sd"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioRunResultData"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "n_paths",
+          "observed_to_date",
+          "start_date",
+          "period_end",
+          "overdispersion_sd",
+          "results"
+        ],
+        "title": "ScenariosRunData"
+      },
+      "ScenariosRunRequest": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "shocks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "el_nino",
+                "la_nina",
+                "neutral_enso",
+                "positive_iod",
+                "negative_iod",
+                "dry_november",
+                "cloudburst"
+              ]
+            },
+            "type": "array",
+            "title": "Shocks"
+          },
+          "historical_analog_years": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Historical Analog Years",
+            "description": "Real ONI/DMI from these real historical years (e.g. 2015 for SPEC's Chennai-floods analog), from the real ingested climate_idx data"
+          },
+          "observed_to_date": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed To Date",
+            "description": "CDR spot already accumulated before start_date; defaults to the latest real index_values row for this series"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date",
+            "description": "Defaults to the day after `as_of`"
+          },
+          "start_state": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Start State",
+            "description": "0=dry, 1=wet, day before start_date",
+            "default": 1
+          },
+          "n_paths": {
+            "type": "integer",
+            "maximum": 200000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "N Paths",
+            "description": "SPEC's n_paths cap enforced",
+            "default": 20000
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed",
+            "default": 42
+          },
+          "hedge_lots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hedge Lots"
+          },
+          "hedge_multiplier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hedge Multiplier"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id"
+        ],
+        "title": "ScenariosRunRequest"
+      },
+      "SourceFreshness": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "latest_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Date"
+          },
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "latest_date",
+          "n_rows"
+        ],
+        "title": "SourceFreshness"
+      },
+      "TrackRecordData": {
+        "properties": {
+          "contract_code": {
+            "type": "string",
+            "title": "Contract Code"
+          },
+          "n_training_rows": {
+            "type": "integer",
+            "title": "N Training Rows"
+          },
+          "n_training_years": {
+            "type": "integer",
+            "title": "N Training Years"
+          },
+          "min_train_years": {
+            "type": "integer",
+            "title": "Min Train Years"
+          },
+          "rungs": {
+            "items": {
+              "$ref": "#/components/schemas/RungResult"
+            },
+            "type": "array",
+            "title": "Rungs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_code",
+          "n_training_rows",
+          "n_training_years",
+          "min_train_years",
+          "rungs"
+        ],
+        "title": "TrackRecordData"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValuationData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "fair_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Value"
+          },
+          "lo90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lo90"
+          },
+          "hi90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hi90"
+          },
+          "n_paths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Paths"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "as_of_date",
+          "method",
+          "measure",
+          "fair_value",
+          "lo90",
+          "hi90",
+          "n_paths"
+        ],
+        "title": "ValuationData"
+      },
+      "ValuationLineage": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "measure",
+          "as_of_date",
+          "run_id"
+        ],
+        "title": "ValuationLineage"
+      },
+      "ValuationsCompareData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "as_of_date": {
+            "type": "string",
+            "title": "As Of Date"
+          },
+          "by_method": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValuationData"
+            },
+            "type": "object",
+            "title": "By Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "as_of_date",
+          "by_method"
+        ],
+        "title": "ValuationsCompareData"
+      },
+      "VerifyData": {
+        "properties": {
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/ChainBreakData"
+            },
+            "type": "array",
+            "title": "Breaks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_rows",
+          "valid",
+          "breaks"
+        ],
+        "title": "VerifyData"
+      }
+    }
+  }
+}

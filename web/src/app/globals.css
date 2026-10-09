@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/*
+ * Monsoon palette (SPEC §10): deep slate + rain-blue + saffron accent.
+ * Light is the default; dark applies via [data-theme="dark"] (toggle in
+ * the header) OR prefers-color-scheme when no explicit choice is stored.
+ */
+:root {
+  --background: #f6f8fb;
+  --surface: #ffffff;
+  --surface-muted: #eef1f6;
+  --foreground: #16213a;
+  --muted: #5b6b8c;
+  --border: #dbe2ee;
+  --accent: #2f6690; /* rain-blue */
+  --accent-foreground: #ffffff;
+  --accent-secondary: #c97f2c; /* saffron, used sparingly -- never as a signal colour */
+  --accent-secondary-foreground: #ffffff;
+  --danger: #8a4a3f; /* desaturated -- stale/error states, not a "bad number" signal */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0b1220;
+    --surface: #121a2b;
+    --surface-muted: #1b253a;
+    --foreground: #e7ecf5;
+    --muted: #93a2c2;
+    --border: #2a3650;
+    --accent: #6fa8cf;
+    --accent-foreground: #0b1220;
+    --accent-secondary: #e3a458;
+    --accent-secondary-foreground: #0b1220;
+    --danger: #d08b7c;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #0b1220;
+  --surface: #121a2b;
+  --surface-muted: #1b253a;
+  --foreground: #e7ecf5;
+  --muted: #93a2c2;
+  --border: #2a3650;
+  --accent: #6fa8cf;
+  --accent-foreground: #0b1220;
+  --accent-secondary: #e3a458;
+  --accent-secondary-foreground: #0b1220;
+  --danger: #d08b7c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-secondary-foreground: var(--accent-secondary-foreground);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
