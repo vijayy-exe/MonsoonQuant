@@ -94,13 +94,13 @@ export default async function TrackRecordPage() {
                       counts={r.pit_histogram.counts}
                     />
                   </div>
-                  <dl className="mt-2 flex gap-3 text-xs text-muted">
+                  <ul className="mt-2 flex gap-3 text-xs text-muted">
                     {Object.entries(r.coverage_by_level).map(([level, cov]) => (
-                      <span key={level}>
+                      <li key={level}>
                         {level}: {(cov * 100).toFixed(0)}%
-                      </span>
+                      </li>
                     ))}
-                  </dl>
+                  </ul>
                 </div>
               ))}
             </div>

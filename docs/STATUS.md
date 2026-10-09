@@ -26,7 +26,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ✅ 18 of 18 SPEC rows built, M12 complete + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
-| 13 | **M13** Dashboard | 🟨 all 9 pages built, real data; Lighthouse not measured | Lighthouse ≥ 90; E2E green | |
+| 13 | **M13** Dashboard | ✅ stated gate met (Lighthouse ≥ 97 measured on all 9 pages, E2E 3/3) — Basis Map is a simpler lon/lat scatter, not SPEC's literal MapLibre basemap; see M13 detail | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
 
@@ -272,9 +272,9 @@ comments) — that's the main remaining honesty caveat.
 | **8 — Learn** `/learn` | ✅ payoff playground re-implementing `mq.risk.parametric.wet_cover_payout`'s exact formula client-side (labeled), seeded from a real fair value; 9-term glossary |
 | **9 — Methods** `/methods` | ✅ renders the real `docs/methods/*.md` files off disk via `marked`, doc picker; data-sources/changelog sections point to the real `docs/VERIFY.md`/`docs/PROGRESS.md` rather than reproducing them |
 | **Real bug found & fixed**: `mq.api.main`'s CORS had `allow_origins=[]`, silently blocking every *browser*-originated request (server-component fetches aren't subject to CORS, which is why pages 1-4/6-9 worked fine before Hedge Lab's client-side form became the first real browser→API call) | ✅ `Settings.web_origins` (`src/mq/config.py`, defaults to the local dev origin, overridable via `MQ_WEB_ORIGINS`), wired into `CORSMiddleware`; `make check` still green after (82 mypy --strict files, 248 pytest) |
-| Playwright E2E, all 3 of SPEC §11's named flows (`web/tests/e2e/`) | ✅ "Overview loads", "Hedge Lab produces a result", "Track Record verifies chain" all pass against the real stack. Two real environment issues hit and fixed: (a) this sandbox blocks `cdn.playwright.dev`, so `playwright.config.ts` falls back to the full Chromium binary; (b) the suite must run `workers: 1` — parallel specs starve the one real synchronous, CPU-bound uvicorn dev process rather than testing anything real |
+| Playwright E2E, all 3 of SPEC §11's named flows (`web/tests/e2e/`) | ✅ "Overview loads", "Hedge Lab produces a result", "Track Record verifies chain" all pass against the real stack. Two real environment issues hit and fixed: (a) this sandbox blocks `cdn.playwright.dev`, so `playwright.config.ts` falls back to the full Chromium binary; (b) the suite must run `workers: 1` — parallel specs starve the one real synchronous, CPU-bound uvicorn dev process rather than testing anything real; (c) the hedge test's timeout needed real room (60s/45s, not 30s/15s) for a cold request-hash cache, matching `docs/methods/hedge.md`'s own ~8s uncached cost |
 | `pnpm run build` / `pnpm run lint` | ✅ both clean across all 9 pages |
-| Lighthouse ≥ 90 | ⬜ not measured yet |
+| **Lighthouse ≥ 90 — measured for real against a production build** (`next build && next start`, headless Chrome, SPEC's own "measured numbers only"): Overview 99/100/100/100, Pricing 98/100/100/100, Forecast 97/100/100/100, Risk 97/100/100/100, Hedge Lab 99/100/100/100, Basis Map 97/100/100/100, Track Record 99/100/100/100, Learn 98/100/100/100, Methods 99/100/100/100 (performance/accessibility/best-practices/SEO) | ✅ **gate met** — every page clears 90 in every category. Caught and fixed 2 real accessibility bugs in the process: `ContractCard`'s `<h3>` broke heading order under Overview's `<h1>` (now `<h2>`); `ThemeToggle`'s `aria-label` didn't contain its own visible text (now does); Track Record's coverage list used `<span>` children inside a `<dl>` (now a plain `<ul>`/`<li>`). Each cold-cache endpoint (greeks' model fit, basis, track-record's backtest) measured near-90/high-80s performance on a genuinely first-ever hit purely from that endpoint's own already-documented real cost (not a UI regression) — warms immediately after, scores above reflect the warm-cache measurement |
 | CORS real deployed origin, rate limiting, OpenAPI drift check in CI, TS client codegen in CI | ⬜ still the M12 hardening items, still deferred |
 
 ---
@@ -408,17 +408,22 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M12 are all done, **M13 (dashboard) has all 9 pages built**
-with real data or an honestly-explained empty/simplified state — see
-this file's M13 detail section and docs/PROGRESS.md's two 2026-10-09
-M13 entries. All 3 of SPEC §11's named E2E flows pass against the real
-stack. Remaining for M13's own gate: Lighthouse ≥ 90 (not measured at
-all yet), and optionally a real MapLibre basemap for Basis Map (page 6
-is currently a simpler lon/lat scatter over the same real data). M12's
-own hardening items (OpenAPI CI drift check, TS codegen in CI, rate
-limiting, a real deployed CORS origin) stay deferred — though a related
-real bug (CORS blocking all browser-side calls) got caught and fixed
-along the way, see the M13 detail table.
+Next: M0-M13 are all done. **M13 (dashboard)'s own stated gate is met**:
+all 9 pages built with real data (or an honestly-explained empty/
+simplified state), Lighthouse measured for real at ≥97/100 on every
+page in every category (performance/accessibility/best-practices/SEO),
+all 3 of SPEC §11's named E2E flows passing against the real stack. See
+this file's M13 detail section and docs/PROGRESS.md's three 2026-10-09
+M13 entries for the full list of what's real vs. simplified (Basis Map
+is a lon/lat scatter, not SPEC's literal MapLibre basemap) and the real
+bugs caught along the way (a CORS misconfiguration that silently
+blocked every browser-side call; 2 real accessibility defects Lighthouse
+itself caught). **M14 (deploy & harden) is next** -- not started: a
+public URL, scheduled jobs, Sentry, backups, 7 consecutive daily runs.
+Or M12's own remaining hardening items (OpenAPI CI drift check, TS
+codegen in CI, rate limiting, a real deployed CORS origin value) stay
+available too. Or a real MapLibre basemap for Basis Map, or the
+analog-years table / P-vs-Q overlay M13 left as honest gaps.
 
 M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
 listed `/v1` endpoint rows built (health/contracts/series-valuation/

@@ -26,7 +26,7 @@ export async function ContractCard({ series }: { series: ListedSeries }) {
     <div className="rounded-lg border border-border bg-surface p-5">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-mono text-sm font-semibold">{series.series_id}</h3>
+          <h2 className="font-mono text-sm font-semibold">{series.series_id}</h2>
           <p className="text-xs text-muted">
             {series.contract_code} · {series.status ?? "unknown status"}
           </p>

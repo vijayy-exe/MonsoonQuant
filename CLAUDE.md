@@ -55,19 +55,23 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard) has all 9 pages built**, real data or an honestly
-explained empty/simplified state throughout. All 3 of SPEC §11's named
-E2E flows pass (Overview loads; Hedge Lab produces a result; Track
-Record verifies chain). Caught and fixed a real bug along the way:
-`mq.api.main`'s CORS had `allow_origins=[]`, silently blocking every
-browser-originated request (server-component fetches aren't subject to
-CORS, so this was invisible until Hedge Lab's client-side form became
-the first real browser→API call) — fixed via `Settings.web_origins`
-(`src/mq/config.py`). Still open for M13's own gate: Lighthouse ≥ 90
-(not measured yet). Basis Map (page 6) is a simpler lon/lat scatter
-over real per-cell stats, not yet SPEC's literal MapLibre basemap. M12
-hardening not yet done (OpenAPI CI drift check, TS codegen in CI, rate
-limiting, a real deployed CORS origin) stays deferred.
+**M13 (dashboard)'s own stated gate is met**: all 9 pages built, real
+data or an honestly explained empty/simplified state throughout,
+Lighthouse measured for real at ≥97/100 on every page/category, all 3
+of SPEC §11's named E2E flows passing (Overview loads; Hedge Lab
+produces a result; Track Record verifies chain). Caught and fixed a
+real bug along the way: `mq.api.main`'s CORS had `allow_origins=[]`,
+silently blocking every browser-originated request (server-component
+fetches aren't subject to CORS, so this was invisible until Hedge
+Lab's client-side form became the first real browser→API call) —
+fixed via `Settings.web_origins` (`src/mq/config.py`). Also caught 2
+real accessibility bugs via Lighthouse itself (heading order, an
+aria-label/visible-text mismatch, an invalid `<dl>`), all fixed. Basis
+Map (page 6) is a simpler lon/lat scatter over real per-cell stats,
+not SPEC's literal MapLibre basemap. **M14 (deploy & harden) is next**
+— not started. M12 hardening not yet done (OpenAPI CI drift check, TS
+codegen in CI, rate limiting, a real deployed CORS origin value) stays
+deferred.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
