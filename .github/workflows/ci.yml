@@ -96,10 +96,70 @@ jobs:
       - run: cd web && pnpm install --frozen-lockfile
       - run: make web-openapi-check
 
-  # Playwright E2E against the real stack (SPEC §11) isn't wired into
-  # CI yet -- it needs a seeded Postgres + a running uvicorn + a built
-  # web/ all up together, more than this job's current services cover.
-  # Not silently skipped: tracked in docs/STATUS.md's M13 section.
+  # Playwright E2E against the real stack (SPEC §11). Only the 2 of 4
+  # specs that don't need real local IMD data run here -- confirmed
+  # empirically (not assumed) that hedge.spec.ts and basis.spec.ts
+  # 500 without it (data/ is deliberately never committed, per
+  # .gitignore), while overview.spec.ts and track-record.spec.ts
+  # degrade to an honest empty state and still pass. Running all 4
+  # against the real stack, including the data-dependent two, still
+  # happens locally (`make web-e2e`) where that data actually exists.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [lint-and-types, web]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq
+          POSTGRES_DB: monsoonquant
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mq -d monsoonquant"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MQ_DATABASE_URL: postgresql+psycopg://mq:mq@localhost:5432/monsoonquant
+      PYTHONPATH: ${{ github.workspace }}/src
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: uv sync
+      - run: uv run alembic -c src/mq/db/alembic.ini upgrade head
+      - run: uv run mq specs seed-registry
+      - run: cd web && pnpm install --frozen-lockfile
+      - run: cd web && pnpm exec playwright install --with-deps chromium
+      - run: cd web && pnpm run build
+      # Server start, readiness wait, and the test run all happen in one
+      # shell script -- deliberately not split across steps, so this
+      # doesn't depend on background processes surviving a step
+      # boundary (not guaranteed, unlike within one script).
+      - name: Start servers and run E2E
+        run: |
+          uv run uvicorn mq.api.main:app --host 0.0.0.0 --port 8000 &
+          (cd web && pnpm run start) &
+          for i in $(seq 1 30); do curl -sf http://localhost:8000/v1/health && break; sleep 2; done
+          for i in $(seq 1 30); do curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done
+          cd web && pnpm exec playwright test tests/e2e/overview.spec.ts tests/e2e/track-record.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/test-results/
+          retention-days: 7
 
   # Added once core/ has a CMakeLists.txt (M5):
   # cpp-build-and-test

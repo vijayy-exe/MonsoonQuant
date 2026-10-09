@@ -261,7 +261,7 @@ comments) — that's the main remaining honesty caveat.
 | Next.js 16 scaffold (`web/`: App Router, TypeScript, Tailwind v4, pnpm) | ✅ |
 | Monsoon palette (deep slate/rain-blue/saffron), light default + dark via `data-theme`/`prefers-color-scheme`, toggle via `useSyncExternalStore` | ✅ |
 | Chart tokens (dataviz skill's validated default categorical/status palette) in `globals.css`, kept separate from the muted UI-chrome tokens | ✅ |
-| OpenAPI → TS pipeline: `make web-openapi` (exports `app.openapi()` directly, no server needed) → `openapi-typescript` → `openapi-fetch` typed client | ✅ `make web-codegen`; not yet wired into CI as a drift check (M12 hardening item, still deferred) |
+| OpenAPI → TS pipeline: `make web-openapi` (exports `app.openapi()` directly, no server needed) → `openapi-typescript` → `openapi-fetch` typed client | ✅ `make web-codegen`; wired into CI as a drift check (`web-openapi-drift`) |
 | `Lineage` component — hover/focus reveals a value's real envelope `meta` | ✅ used throughout |
 | **1 — Overview `/`** | ✅ real contract cards, season progress, freshness pills — see 2026-10-09 PROGRESS entry for exact numbers |
 | **2 — Pricing** `/series/[id]/pricing` | ✅ real burn/dist comparison bars w/ real 90% intervals; conditioned/mpr render explicit "not available" cards (real reason, not a fake bar); P-vs-Q overlay honest-empty (no real λ yet) |
@@ -278,7 +278,8 @@ comments) — that's the main remaining honesty caveat.
 | **Lighthouse ≥ 90 — measured for real against a production build** (`next build && next start`, headless Chrome, SPEC's own "measured numbers only"): Overview 99/100/100/100, Pricing 98/100/100/100, Forecast 97/100/100/100, Risk 97/100/100/100, Hedge Lab 99/100/100/100, Basis Map 93/100/100/100 (with the real MapLibre basemap, after fixing the worker-loading bug below — see this table's row 6), Track Record 99/100/100/100, Learn 98/100/100/100, Methods 99/100/100/100 (performance/accessibility/best-practices/SEO) | ✅ **gate met** — every page clears 90 in every category. Caught and fixed 2 real accessibility bugs in the process: `ContractCard`'s `<h3>` broke heading order under Overview's `<h1>` (now `<h2>`); `ThemeToggle`'s `aria-label` didn't contain its own visible text (now does); Track Record's coverage list used `<span>` children inside a `<dl>` (now a plain `<ul>`/`<li>`). Each cold-cache endpoint (greeks' model fit, basis, track-record's backtest) measured near-90/high-80s performance on a genuinely first-ever hit purely from that endpoint's own already-documented real cost (not a UI regression) — warms immediately after, scores above reflect the warm-cache measurement |
 | **Rate limiting** — SPEC §9.3's anon tier (60 req/min, fixed-window per client IP) | ✅ `src/mq/api/ratelimit.py`, wired into `mq.api.main` ahead of CORS (so a 429 still carries CORS headers); real RFC9457 `mq/rate-limited` problem+json on trip. **Not built**: the API-key tier (no key-issuance system exists) — stated, not silently skipped |
 | **OpenAPI/TS codegen drift check** | ✅ `make web-openapi-check` (new Makefile target) regenerates both files from the live app object and fails on any diff; wired into CI as `web-openapi-drift` (`.github/workflows/ci.yml`) |
-| **Web CI job** (`.github/workflows/ci.yml`'s new `web` job) | ✅ pnpm install + lint + build on every push/PR. **Not added**: Playwright E2E in CI — needs a seeded Postgres + running uvicorn + built web/ all up together at once, more than this job covers yet; stated as a gap, not silently missing |
+| **Web CI job** (`.github/workflows/ci.yml`'s new `web` job) | ✅ pnpm install + lint + build on every push/PR |
+| **Playwright E2E in CI** (`e2e` job) | ✅ a seeded Postgres + running uvicorn + built `web/`, all started in one job. Only runs `overview.spec.ts` + `track-record.spec.ts` — confirmed empirically (spun up a throwaway server from a directory with no local IMD data, plus an isolated scratch Postgres DB, migrated+seeded but otherwise empty) that `hedge.spec.ts`/`basis.spec.ts` genuinely 500 without real `data/parquet/rain_grid` (deliberately never committed), while these two degrade to an honest empty state. **Real bugs caught by that same simulation, fixed**: (a) `/v1/health` was itself subject to the new rate limiter, so a CI startup wait-loop polling it could burn a chunk of the 60/min anon budget before any real test traffic started — health checks now exempted; (b) `getLedgerVerify`/`listLedgerRows` threw on any error (including a 429), crashing Track Record's *entire* page via Next's generic error boundary instead of degrading one section — now return `null` like every other query function, with the page showing an explicit "Ledger status unavailable" state instead |
 | CORS real deployed origin | ⬜ still an M12 hardening item (needs a real M14 deploy target first) |
 
 ---
@@ -414,27 +415,36 @@ tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
 Next: M0-M13 are all done. **M13 (dashboard)'s own stated gate is met**:
 all 9 pages built with real data (or an honestly-explained empty/
-simplified state), Lighthouse measured for real at ≥97/100 on every
-page in every category (performance/accessibility/best-practices/SEO),
-all 3 of SPEC §11's named E2E flows (plus a 4th covering the real
-MapLibre map) passing against the real stack. See
-this file's M13 detail section and docs/PROGRESS.md's three 2026-10-09
-M13 entries for the full list of what's real vs. simplified (Basis Map
-is a lon/lat scatter, not SPEC's literal MapLibre basemap) and the real
-bugs caught along the way (a CORS misconfiguration that silently
-blocked every browser-side call; 2 real accessibility defects Lighthouse
-itself caught). M12's hardening items are now also done: OpenAPI
-export + CI drift check, TS codegen, anon-tier rate limiting (60/min),
-a `web` CI job (pnpm install/lint/build). **M14 (deploy & harden) is
-next** -- not started: a public URL, scheduled jobs, Sentry, backups, 7
-consecutive daily runs, and a real deployed CORS origin value (the one
-remaining M12 item, blocked on M14 existing at all). Or a real
-MapLibre basemap for Basis Map, Playwright E2E wired into CI, or the
-analog-years table / P-vs-Q overlay M13 left as honest gaps.
+simplified state, including a real MapLibre basemap on Basis Map, not
+a simplified scatter), Lighthouse measured for real at ≥90/100 on
+every page in every category, all 4 of SPEC §11's E2E-flow-equivalent
+specs passing against the real stack. M12's hardening items are also
+done: OpenAPI export + CI drift check, TS codegen, anon-tier rate
+limiting (60/min, health-checks exempted), a `web` CI job, and
+Playwright E2E wired into CI (2 of 4 specs -- `hedge`/`basis` need real
+local IMD data a fresh CI checkout structurally can't have, confirmed
+empirically, not assumed). See docs/PROGRESS.md's 2026-10-09 entries
+for the full list of real bugs caught along the way (a CORS
+misconfiguration; 2 accessibility defects; a maplibre-gl worker-loading
+bug; a rate-limited health-check loop; an uncaught ledger-query error
+that crashed the whole Track Record page instead of degrading one
+section).
 
-Also worth considering, independent of M13/M14: addressing an open
-blocker above (bhavcopy/MJO bot-gates block the most — M2's real
-market data, M6/M8's real calibration, and M11's own research outputs
-all wait on bhavcopy specifically), or extending the IMD backfill back
-to 1951 for SPEC's literal statistical-holdout window (currently only
-1991-2020+2023) — a data task, not a code task.
+**Two things genuinely need your decision before they can move**:
+M14 (deploy & harden) needs real infra choices (hosting provider,
+domain, secrets) only you can make -- not started. The Forecast page's
+analog-years table needs a live-ledger-row writer for the newer
+forecasting rungs that doesn't exist yet (`analog_v1`'s own chosen
+years ARE already computed internally, just never written anywhere
+reachable) -- a real, scoped feature, not a quick fix, and it touches
+the append-only prediction ledger, so it's flagged rather than built
+unprompted. The P-vs-Q overlay stays hard-blocked regardless (needs
+real NCDEX settlement data, bot-gated) -- nothing to decide there, it
+just isn't actionable.
+
+Also worth considering, independent of the above: addressing the
+bhavcopy/MJO bot-gate blockers (M2's real market data, M6/M8's real
+calibration, and M11's own research outputs all wait on bhavcopy
+specifically), or extending the IMD backfill back to 1951 for SPEC's
+literal statistical-holdout window (currently only 1991-2020+2023) —
+a data task, not a code task.

@@ -148,15 +148,22 @@ export async function getTrackRecord(
   return data;
 }
 
-export async function getLedgerVerify(): Promise<Envelope<VerifyData>> {
+/**
+ * Returns null on any transient error (e.g. a 429) rather than
+ * throwing -- a real bug this once was: an uncaught error here crashed
+ * Track Record's *entire* page (Next's generic error boundary), not
+ * just this one section, caught via a real rate-limit trip while
+ * testing against a cold server.
+ */
+export async function getLedgerVerify(): Promise<Envelope<VerifyData> | null> {
   const { data, error } = await api.GET("/v1/ledger/verify");
-  if (error) throw error;
+  if (error) return null;
   return data;
 }
 
-export async function listLedgerRows(): Promise<Envelope<LedgerRowsData>> {
+export async function listLedgerRows(): Promise<Envelope<LedgerRowsData> | null> {
   const { data, error } = await api.GET("/v1/ledger", { params: { query: {} } });
-  if (error) throw error;
+  if (error) return null;
   return data;
 }
 

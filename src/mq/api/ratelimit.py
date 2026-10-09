@@ -51,7 +51,11 @@ def make_rate_limit_middleware(
     async def middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if not request.url.path.startswith("/v1"):
+        # Liveness/readiness probes are infra plumbing, not API usage --
+        # a real, measured problem otherwise: a CI startup script polling
+        # /v1/health in a wait loop burned a meaningful chunk of the
+        # anon budget before any real test traffic even started.
+        if not request.url.path.startswith("/v1") or request.url.path.startswith("/v1/health"):
             return await call_next(request)
 
         client_ip = request.client.host if request.client is not None else "unknown"

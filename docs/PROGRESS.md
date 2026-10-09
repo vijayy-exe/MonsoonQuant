@@ -5,6 +5,64 @@ measured numbers.
 
 ---
 
+## 2026-10-09 (cont.) — Playwright E2E wired into CI; 2 more real bugs caught by simulating it
+
+Closes the last stated M12/M13 CI gap. Didn't trust the design on
+paper -- simulated the actual CI job locally first (a scratch Postgres
+database inside the existing container, migrated + seeded but
+otherwise empty; a throwaway uvicorn started from a directory with no
+local `data/`, so it genuinely has no access to real IMD/climate
+parquet files) before writing a single line of YAML for it.
+
+- **Confirmed empirically, not assumed**: `hedge.spec.ts` and
+  `basis.spec.ts` both get a real 500 from the backend
+  (`pl.read_parquet` on a glob matching zero files) without real local
+  IMD data -- `data/` is deliberately never committed (`.gitignore`),
+  so a fresh CI checkout structurally cannot run these two. Confirmed
+  the other two (`overview.spec.ts`, `track-record.spec.ts`) degrade
+  to an honest empty state and pass fine on a pristine DB.
+- **Real bug #1, caught by the first simulated run failing**: Track
+  Record's entire page crashed ("This page couldn't load", Next's
+  generic error boundary) instead of showing anything. Root cause:
+  `getLedgerVerify`/`listLedgerRows` in `web/lib/api/queries.ts` threw
+  on any API error (unlike every other query function, which returns
+  `null`) -- and the specific error was a 429 from my own new rate
+  limiter, tripped by my own repeated manual testing against the same
+  throwaway server. Fixed two ways: (a) those two functions now return
+  `null` like the rest of the query layer, and the Track Record page
+  shows an explicit "Ledger status unavailable" state for a transient
+  failure instead of taking the whole page down; (b) `/v1/health` is
+  now exempt from the rate limiter -- a CI startup script polling it
+  in a wait loop was itself burning a real chunk of the 60/min anon
+  budget before any actual test traffic started, which is exactly the
+  kind of self-inflicted lockout a liveness probe should never cause.
+- Re-ran the full simulation after both fixes: both specs pass clean.
+  Also re-ran all 4 specs against the real local dev stack (with real
+  data) to confirm nothing regressed there -- all 4 still pass.
+- `.github/workflows/ci.yml`'s new `e2e` job: seeds a real Postgres,
+  starts `uvicorn` + a built `web/` production server, waits for both,
+  runs the 2 real-data-independent specs, uploads the Playwright
+  report as an artifact on failure. Server start + readiness wait +
+  test run are deliberately one shell script (not split across steps)
+  so this doesn't depend on background processes surviving a GitHub
+  Actions step boundary -- true within one script regardless.
+- `make check` green after (83 mypy --strict files, 248 pytest),
+  full local E2E suite (4/4) green against the real stack.
+
+**Still open, flagged to the user rather than guessed at**: M14
+(deploy & harden) needs real infrastructure decisions only the user
+can make. The Forecast page's analog-years table needs a new
+live-ledger-row writer for `analog_v1`/the other newer forecasting
+rungs (the chosen years are already computed internally --
+`AnalogForecast.analog_years` -- just never written anywhere the API
+can read; SPEC §7.6/M7's own prior "needs a separate live-row builder"
+gap) -- real, scoped work that touches the append-only prediction
+ledger, so it's being asked about rather than built unprompted. The
+P-vs-Q overlay stays hard-blocked regardless of any decision (real
+NCDEX settlement data, bot-gated) -- nothing to decide there.
+
+---
+
 ## 2026-10-09 (cont.) — Basis Map gets a real MapLibre basemap; 2 real bugs caught fixing it
 
 Closes the one SPEC §10 gap explicitly flagged as simplified: page 6

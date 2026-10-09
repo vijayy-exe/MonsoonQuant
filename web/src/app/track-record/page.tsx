@@ -25,40 +25,53 @@ export default async function TrackRecordPage() {
       </p>
 
       <section className="mt-8">
-        <div className="flex items-center gap-3">
-          <HashChainBadge valid={verify.data.valid} nRows={verify.data.n_rows} />
-          <span className="text-xs text-muted">
-            Public ledger-mirror repo not deployed yet (M1 deferred item) —
-            no link to show.
-          </span>
-        </div>
+        {verify ? (
+          <div className="flex items-center gap-3">
+            <HashChainBadge valid={verify.data.valid} nRows={verify.data.n_rows} />
+            <span className="text-xs text-muted">
+              Public ledger-mirror repo not deployed yet (M1 deferred item) —
+              no link to show.
+            </span>
+          </div>
+        ) : (
+          <EmptyState
+            title="Ledger status unavailable"
+            detail="The verify endpoint didn't return a result (transient error, e.g. a rate limit) — not the same as a broken chain."
+          />
+        )}
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="text-muted">
-              <tr>
-                <th className="pb-2 pr-4">contract</th>
-                <th className="pb-2 pr-4">model</th>
-                <th className="pb-2 pr-4">version</th>
-                <th className="pb-2 pr-4">as of</th>
-                <th className="pb-2 pr-4">target</th>
-                <th className="pb-2">row hash</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.data.rows.map((r) => (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="py-1.5 pr-4 font-mono">{r.contract_code}</td>
-                  <td className="py-1.5 pr-4">{r.model_id}</td>
-                  <td className="py-1.5 pr-4 text-muted">{r.model_version}</td>
-                  <td className="py-1.5 pr-4">{r.as_of_date}</td>
-                  <td className="py-1.5 pr-4 text-muted">{r.target}</td>
-                  <td className="py-1.5 font-mono text-muted">{r.row_hash.slice(0, 12)}…</td>
+        {rows && rows.data.rows.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th className="pb-2 pr-4">contract</th>
+                  <th className="pb-2 pr-4">model</th>
+                  <th className="pb-2 pr-4">version</th>
+                  <th className="pb-2 pr-4">as of</th>
+                  <th className="pb-2 pr-4">target</th>
+                  <th className="pb-2">row hash</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.data.rows.map((r) => (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="py-1.5 pr-4 font-mono">{r.contract_code}</td>
+                    <td className="py-1.5 pr-4">{r.model_id}</td>
+                    <td className="py-1.5 pr-4 text-muted">{r.model_version}</td>
+                    <td className="py-1.5 pr-4">{r.as_of_date}</td>
+                    <td className="py-1.5 pr-4 text-muted">{r.target}</td>
+                    <td className="py-1.5 font-mono text-muted">{r.row_hash.slice(0, 12)}…</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <EmptyState title="No ledger rows" detail="Nothing has been written to the prediction ledger yet." />
+          </div>
+        )}
       </section>
 
       <section className="mt-10">

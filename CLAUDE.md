@@ -55,29 +55,27 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard)'s own stated gate is met**: all 9 pages built, real
-data or an honestly explained empty/simplified state throughout,
-Lighthouse measured for real at ≥97/100 on every page/category, all 3
-of SPEC §11's named E2E flows passing (Overview loads; Hedge Lab
-produces a result; Track Record verifies chain). Caught and fixed a
-real bug along the way: `mq.api.main`'s CORS had `allow_origins=[]`,
-silently blocking every browser-originated request (server-component
-fetches aren't subject to CORS, so this was invisible until Hedge
-Lab's client-side form became the first real browser→API call) —
-fixed via `Settings.web_origins` (`src/mq/config.py`). Also caught 2
-real accessibility bugs via Lighthouse itself (heading order, an
-aria-label/visible-text mismatch, an invalid `<dl>`), all fixed. Basis
-Map (page 6) now has a real MapLibre GL map over MapLibre's free public
-demo tiles (no key/account), not a simplified scatter — caught and
-fixed a real bug along the way (the worker script failed to load under
-Turbopack and silently blocked the main thread; fixed by serving it as
-a static file + `setWorkerUrl()`, then deferring init past the critical
-render path via `requestIdleCallback`). **M12 hardening is also now
-done**: OpenAPI export + CI drift check (`make web-openapi-check`), TS
-codegen, anon-tier rate limiting (60/min, `src/mq/api/ratelimit.py` —
-no API-key tier, no key-issuance system exists), a `web` CI job.
-**M14 (deploy & harden) is next** — not started: needs real infra
-decisions (host, domain, secrets) that are the user's call.
+**M13 (dashboard) and M12's hardening list are both done.** All 9
+pages built, real data or an honestly explained empty/simplified
+state (including a real MapLibre basemap on Basis Map, no API key).
+Lighthouse measured for real at ≥90/100 on every page/category.
+Playwright E2E wired into both local dev (4 specs against the real
+stack) and CI (2 of 4 — `hedge`/`basis` need real local IMD data a
+fresh CI checkout structurally can't have, confirmed empirically).
+OpenAPI export + CI drift check, TS codegen, anon-tier rate limiting
+(health-checks exempted), a `web` CI job: all done. Several real bugs
+were caught and fixed along the way (CORS, accessibility, a
+maplibre-gl worker-loading bug, a rate-limited health-check loop, an
+uncaught ledger-query error crashing a whole page) — full detail in
+`docs/PROGRESS.md`'s 2026-10-09 entries, don't re-litigate here.
+
+**Two things are blocked on your call, not effort**: M14 (deploy &
+harden) needs real infra choices (host, domain, secrets). The
+Forecast page's analog-years table needs a new live-ledger-row writer
+for the newer forecasting rungs — a real feature touching the
+append-only prediction ledger, not a quick fix. The P-vs-Q overlay
+stays hard-blocked regardless (real NCDEX settlement data, bot-gated)
+— nothing to decide there.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.
