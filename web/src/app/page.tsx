@@ -2,7 +2,9 @@ import { ContractCard } from "@/components/contract-card";
 import { FreshnessPill } from "@/components/freshness-pill";
 import { getDataFreshness, listContracts } from "@/lib/api/queries";
 
-export const revalidate = 60;
+// Every number on this page comes live from the API at request time
+// (SPEC §17: "engines own every number") -- never statically prerendered.
+export const instant = false;
 
 export default async function OverviewPage() {
   const [series, freshness] = await Promise.all([listContracts(), getDataFreshness()]);

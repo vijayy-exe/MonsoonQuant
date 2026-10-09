@@ -55,9 +55,14 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard) is next — not started.** M12 hardening not yet done
-(OpenAPI file export, TS codegen, rate limiting, real CORS origin) is
-deliberately deferred to/pending M13's own `web/` scaffold.
+**M13 (dashboard) is started — page 1/9.** `web/` is scaffolded (Next.js
+16, TypeScript, Tailwind v4, the monsoon palette, a typed OpenAPI
+client via `make web-codegen`). The Overview page (`/`) is built and
+confirmed real end-to-end against the live API/DB, with a passing
+Playwright E2E test. Pages 2-9 (pricing/forecast/risk/hedge lab/basis
+map/track record/learn/methods) are next, in SPEC §10's order. M12
+hardening not yet done (OpenAPI CI drift check, TS codegen in CI, rate
+limiting, real CORS origin) stays deferred.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

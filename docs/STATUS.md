@@ -26,7 +26,7 @@ Repo: `~/Documents/MonsoonQuant` (local git, not yet pushed anywhere).
 | 10 | **M9** Hedge optimiser | ✅ done — min-variance + CVaR95 LP, real run against RAINCHNNAI (see M9 detail) | `/v1/hedge` < 5s | |
 | 11 | **M10** Basis · **M11** Parametric & Scenarios | ✅ M10 and M11 (both parametric cover + scenario lab) all done — see M10/M11 detail | basis heatmap + 1 parametric case study | |
 | 12 | **M12** API hardening · live eval | ✅ 18 of 18 SPEC rows built, M12 complete + real integration tests against the real DB; see M12 detail | contract tests + OpenAPI drift check green | |
-| 13 | **M13** Dashboard | ⬜ not started | Lighthouse ≥ 90; E2E green | |
+| 13 | **M13** Dashboard | 🟨 started — page 1/9 (Overview) real end-to-end | Lighthouse ≥ 90; E2E green | |
 | 14 | **M14** Deploy & harden | ⬜ not started | public URL; 7 consecutive daily runs | |
 | 15 | **M15** Paper, demo, launch | ⬜ not started | Definition of Done walkthrough passes | |
 
@@ -253,6 +253,23 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
+## M13 detail (dashboard — page 1/9 built, real end-to-end)
+
+| Item | Status |
+|---|---|
+| Next.js 16 scaffold (`web/`: App Router, TypeScript, Tailwind v4, pnpm) | ✅ |
+| Monsoon palette (deep slate/rain-blue/saffron), light default + dark via `data-theme`/`prefers-color-scheme`, toggle via `useSyncExternalStore` | ✅ |
+| OpenAPI → TS pipeline: `make web-openapi` (exports `app.openapi()` directly, no server needed) → `openapi-typescript` → `openapi-fetch` typed client | ✅ `make web-codegen`; not yet wired into CI as a drift check (M12 hardening item, still deferred) |
+| `Lineage` component — hover/focus reveals a value's real envelope `meta` (as_of/data_version/model_version/spec_version) | ✅ every number on Overview uses it, not a placeholder |
+| **Page 1 — Overview `/`** | ✅ real contract cards (fair-value band, settle, index-to-date), season progress bar, data-freshness pills; confirmed live against the real API/DB — RAINCHNNAI shows the exact M3/M4 numbers in `docs/STATUS.md`; RAINMUMBAI (no pricing run, season closed) renders explicit "pending"/"season closed" states, not a fabricated number |
+| Pages 2-9 (pricing, forecast, risk, hedge lab, basis map, track record, learn, methods) | ⬜ not started |
+| Playwright E2E (`web/tests/e2e/overview.spec.ts`) | ✅ passes against a real `next dev` + real `uvicorn` + real Postgres, not mocked. Real environment quirk hit and fixed: this sandbox's network blocks `cdn.playwright.dev`, so the default headless-shell binary can't download — `playwright.config.ts` detects and falls back to the full Chromium binary when present |
+| `pnpm run build` / `pnpm run lint` | ✅ both clean. One real Next.js 16 "Cache Components" issue fixed: `/page.tsx` needs `export const instant = false` since it must never be statically prerendered |
+| Lighthouse ≥ 90 | ⬜ not measured yet — only 1 of 9 pages exists |
+| CORS origin, rate limiting, OpenAPI drift check in CI, TS client codegen in CI | ⬜ still the M12 hardening items, still deferred |
+
+---
+
 ## Live state (real data now on disk / in the DB)
 
 - **IMD historical backfill 1991-2020: fully complete.** All 30 years
@@ -382,7 +399,15 @@ make dev                     # postgres + mlflow
 make check                   # should be green
 tail -f .scratch/backfill.log  # check IMD backfill progress, if still running
 ```
-Next: M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
+Next: M0-M12 are all done, **M13 (dashboard) is started**: page 1/9
+(Overview) is built and real end-to-end (`web/` — Next.js 16 + the
+monsoon palette + a typed OpenAPI client + a real Playwright E2E test
+against the live API/DB). Pages 2-9 (pricing/forecast/risk/hedge
+lab/basis map/track record/learn/methods) are next, in SPEC §10's own
+order. See docs/PROGRESS.md's 2026-10-09 M13 entry and this file's M13
+detail section above.
+
+M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
 listed `/v1` endpoint rows built (health/contracts/series-valuation/
 index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/
 scenarios-run/greeks/track-record/lineage), real envelope + RFC9457

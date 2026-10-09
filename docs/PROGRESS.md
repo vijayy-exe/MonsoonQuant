@@ -5,6 +5,81 @@ measured numbers.
 
 ---
 
+## 2026-10-09 — M13 Dashboard (start) — Next.js scaffold + Overview page, real data end-to-end
+
+First slice of M13, not the whole milestone — one fully real page over
+one partial session rather than nine half-built ones.
+
+- **`web/` scaffolded**: Next.js 16 (App Router, TypeScript, Tailwind
+  v4), `pnpm`. Monsoon palette (SPEC §10: deep slate/rain-blue/saffron)
+  as CSS variables in `globals.css`, light default + dark via
+  `data-theme` or `prefers-color-scheme`, toggle persisted to
+  `localStorage` via `useSyncExternalStore` (avoids the hydration
+  mismatch a naive `useState`+`useEffect` toggle would hit).
+- **Typed API client**: `make web-openapi` exports the live FastAPI
+  app's own `app.openapi()` straight to `web/lib/api/openapi.json` (no
+  server needed — it's the app object, not a running process);
+  `openapi-typescript` turns it into `web/lib/api/types.ts` (19 real
+  paths); `openapi-fetch` wraps it as a typed client
+  (`web/lib/api/client.ts`). `make web-codegen` runs both steps; SPEC's
+  "CI fails if stale" isn't wired into CI yet (M12 hardening item,
+  still deferred).
+- **`Lineage` component** (`web/components/lineage.tsx`): every number
+  that comes from the API wraps in this — hover/focus reveals the
+  envelope's own real `meta` (as_of, data_version, model_version,
+  spec_version), never a fabricated placeholder. Caught and fixed one
+  real mistake while building it: an earlier draft of `ContractCard`
+  synthesized an empty meta object instead of threading through the
+  real envelope `meta` from each query — fixed by having
+  `lib/api/queries.ts` return `{data, meta}` pairs, not just `data`.
+- **Overview page built** (`/`, SPEC §10 page 1): real contract cards
+  (fair-value band, latest settle, index observed-to-date), season
+  progress bar from real `period_start`/`period_end`, data-freshness
+  pills from `/v1/health/data`. Confirmed live against the real API +
+  real DB (not mocked): RAINCHNNAI shows fair_value=902.7mm, band
+  318.0–1796.6mm, index=815.3mm as of 2026-10-03, matching
+  `docs/STATUS.md`'s M4/M3 numbers exactly. RAINMUMBAI (no M4 pricing
+  ever run for it, season closed) correctly renders explicit empty
+  states ("pending", "season closed") rather than a fabricated number
+  — SPEC §10's "empty/stale states designed explicitly" taken
+  literally. `market_quotes` renders "no trades yet" / "NCDEX bhavcopy
+  not yet available" (real zero-row state, same root cause as M2/M6).
+- **Real environment gotcha, logged for next time**: this sandbox's
+  network blocks `cdn.playwright.dev`, so Playwright's
+  `chromium-headless-shell` download (what headless test runs use by
+  default) always fails here — only the full `chromium` binary
+  downloads. Fixed by having `playwright.config.ts` detect and point
+  `launchOptions.executablePath` at the full Chrome-for-Testing binary
+  when present, falling back to normal resolution otherwise (CI, with
+  real network access, is unaffected).
+- **Real E2E test passing against the live stack**: `pnpm run test:e2e`
+  (`web/tests/e2e/overview.spec.ts`) drives a real browser against a
+  real `next dev` server talking to a real `uvicorn` + real Postgres —
+  not a mocked fixture. `pnpm run build` and `pnpm run lint` both clean
+  (one real Next.js 16 "Cache Components" issue hit and fixed:
+  `export const instant = false` on `/page.tsx`, since this route must
+  never be statically prerendered — every number on it has to be live).
+- `Makefile`: added `web-openapi`, `web-codegen`, `web-check`,
+  `web-e2e` targets (kept separate from the Python-only `check` target
+  — the web build has its own toolchain and shouldn't become a hard
+  dependency for contributors only touching `src/mq`).
+
+**Not yet done** (explicitly, not silently): pages 2–9 (pricing,
+forecast, risk, hedge lab, basis map, track record, learn, methods);
+CORS origin still `[]` in `mq.api.main` (needs the real web origin once
+deployed); M12's OpenAPI-drift CI check and TS-client CI wiring; rate
+limiting. All tracked in `docs/STATUS.md`'s M13 section.
+
+**Gate status:** M13's own gate (Lighthouse ≥ 90, E2E green, all 9
+pages) is **not met yet** — only page 1 of 9 exists. The one E2E test
+that exists passes against the real stack.
+
+**Next task:** page 2 (Pricing, `/series/[id]/pricing`) — 4-method
+comparison bar, payoff distribution P vs Q overlay, MC SE, method
+notes — or continue in series order per SPEC §10.
+
+---
+
 ## 2026-10-09 (cont.) — M12 API: GET /v1/lineage — M12 COMPLETE (18/18 SPEC rows)
 
 Final M12 endpoint.

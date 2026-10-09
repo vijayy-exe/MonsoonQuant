@@ -1,3 +1,5 @@
+import { nowMs } from "@/lib/time";
+
 export function SeasonProgress({
   periodStart,
   periodEnd,
@@ -10,7 +12,7 @@ export function SeasonProgress({
   }
   const start = new Date(periodStart).getTime();
   const end = new Date(periodEnd).getTime();
-  const now = Date.now();
+  const now = nowMs();
   const pct = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
   const closed = now > end;
 

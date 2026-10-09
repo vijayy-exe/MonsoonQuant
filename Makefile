@@ -1,4 +1,5 @@
-.PHONY: bootstrap check seed-registry test-golden bench ingest reproduce dev down
+.PHONY: bootstrap check seed-registry test-golden bench ingest reproduce dev down \
+	web-openapi web-codegen web-check web-e2e
 
 # macOS + uv quirk: `uv run` creates/touches the editable-install .pth file
 # with the UF_HIDDEN flag, which CPython 3.12's site.py silently skips,
@@ -40,3 +41,26 @@ dev:
 
 down:
 	docker compose down
+
+# M13 (dashboard, web/): the OpenAPI schema is exported straight from the
+# live FastAPI app object (no server needed), then openapi-typescript
+# turns it into web/lib/api/types.ts -- CI fails if this drifts from the
+# API (SPEC §9's "CI fails if stale").
+web-openapi:
+	uv run python -c "\
+import json; \
+from mq.api.main import app; \
+json.dump(app.openapi(), open('web/lib/api/openapi.json', 'w'), indent=2)"
+
+web-codegen: web-openapi
+	cd web && pnpm run codegen
+
+web-check: web-codegen
+	cd web && pnpm run lint
+	cd web && pnpm run build
+
+# Assumes `make dev`, a running `uvicorn mq.api.main:app`, and `pnpm dev`
+# (or `pnpm build && pnpm start`) are already up -- E2E hits the real
+# stack, never mocks (SPEC §11).
+web-e2e:
+	cd web && pnpm run test:e2e
