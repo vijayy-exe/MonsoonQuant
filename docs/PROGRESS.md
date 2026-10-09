@@ -5,6 +5,62 @@ measured numbers.
 
 ---
 
+## 2026-10-09 (cont.) — M12 hardening complete: rate limiting, OpenAPI/TS CI drift check, web CI job
+
+M13's own gate didn't need these, but SPEC §9/§11's own CI description
+did — closing out M12's deferred hardening list rather than leaving it
+indefinitely deferred now that M13 is otherwise done.
+
+- **Rate limiting** (SPEC §9.3: "60 req/min anon; API keys for higher
+  limits"): `src/mq/api/ratelimit.py`, a fixed-window counter per
+  client IP, wired into `mq.api.main` as middleware -- registered
+  *before* `CORSMiddleware` so a 429 still carries CORS headers
+  (Starlette's middleware stack is last-added-outermost; otherwise a
+  rate-limited browser request would look like a CORS failure, not a
+  429, to the dashboard). Real RFC9457 `mq/rate-limited` problem+json
+  on trip, `Retry-After` + `X-RateLimit-Remaining` headers. **Only the
+  anon tier is built** -- the API-key tier isn't, since there's no
+  key-issuance/validation system in this project at all; said so in
+  the module docstring, not silently half-done.
+- **Real risk checked before trusting this, not assumed safe**: the
+  existing API integration tests (`tests/integration/test_api.py` and
+  everything else importing `mq.api.main.app`) all share one process
+  and one `RateLimiter` instance for the lifetime of a `pytest` run --
+  genuinely risked breaking tests if the full suite fired >60 `/v1/*`
+  requests inside any 60s window. Ran `test_api.py` alone (38 passed),
+  then the full 248-test suite twice (once standalone, once inside
+  `make check`) to confirm it doesn't -- real verification, not "should
+  be fine."
+- **OpenAPI/TS codegen drift check**: new `make web-openapi-check`
+  target (SPEC §9: "CI fails if stale") -- regenerates
+  `web/lib/api/openapi.json` and `web/lib/api/types.ts` from the live
+  `app.openapi()` object (no DB/server needed, `mq.db.session`'s engine
+  is lazy) and fails via `git diff --exit-code` if anything changed.
+  Verified locally: clean (no drift) against the current API surface.
+- **CI** (`.github/workflows/ci.yml`): new `web` job (pnpm install,
+  lint, build) and `web-openapi-drift` job (runs the check above).
+  **Not added**: Playwright E2E in CI -- would need a seeded Postgres +
+  running uvicorn + built `web/` all up together in one job, more than
+  these two cover; said so in the workflow file itself, not left as a
+  silent gap. Validated the YAML parses correctly (`yaml.safe_load`);
+  **not yet confirmed green on an actual GitHub Actions run** -- that
+  needs a push, which wasn't requested.
+- `make check` (83 mypy --strict files now, was 82; 248 pytest tests)
+  and the full web `build`/`lint` both still green after all of the
+  above.
+
+**Gate status**: M12's hardening list (OpenAPI export + CI drift check,
+TS codegen, rate limiting, a `web` CI job) is now fully done. Only
+remaining M12 item: a real deployed CORS origin value, which needs
+M14 to exist first.
+
+**Next task**: M14 (deploy & harden) -- needs real infrastructure
+decisions (hosting provider, domain, secrets) that are the user's call,
+not something to pick unprompted. Or Playwright E2E in CI, or a real
+MapLibre basemap for Basis Map.
+
+---
+
 ## 2026-10-09 (cont.) — M13 gate met: real Lighthouse ≥97 on all 9 pages, 2 real a11y bugs fixed
 
 M13's own stated gate (SPEC §10: "Lighthouse ≥ 90; E2E green") is now

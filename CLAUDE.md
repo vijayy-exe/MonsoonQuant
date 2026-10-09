@@ -68,10 +68,12 @@ fixed via `Settings.web_origins` (`src/mq/config.py`). Also caught 2
 real accessibility bugs via Lighthouse itself (heading order, an
 aria-label/visible-text mismatch, an invalid `<dl>`), all fixed. Basis
 Map (page 6) is a simpler lon/lat scatter over real per-cell stats,
-not SPEC's literal MapLibre basemap. **M14 (deploy & harden) is next**
-— not started. M12 hardening not yet done (OpenAPI CI drift check, TS
-codegen in CI, rate limiting, a real deployed CORS origin value) stays
-deferred.
+not SPEC's literal MapLibre basemap. **M12 hardening is also now
+done**: OpenAPI export + CI drift check (`make web-openapi-check`), TS
+codegen, anon-tier rate limiting (60/min, `src/mq/api/ratelimit.py` —
+no API-key tier, no key-issuance system exists), a `web` CI job.
+**M14 (deploy & harden) is next** — not started: needs real infra
+decisions (host, domain, secrets) that are the user's call.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

@@ -249,7 +249,8 @@ comments) — that's the main remaining honesty caveat.
 | `GET /v1/track-record` | ✅ a real, on-demand re-run of M7's 5-rung walk-forward backtest (all data real: IMD rainfall, ONI/DMI), not stored/stale numbers -- reproduces `docs/methods/forecasting.md`'s exact real mean_crps values (confirmed by a test). Real cost ~40-50s uncached (timed directly before committing to the design), so cached by (contract_code, as_of), same pattern as `basis` |
 | `GET /v1/lineage` | ✅ real provenance assembled from `contract_specs`/`valuations`/`index_values`/`prediction_ledger` -- a pure read, no cache needed (0.16s live). Real, disclosed gap found: `valuations.run_id` is `NULL` for every real row (no write path ever attached one to a `model_runs` row); not hidden, reported in the response itself |
 | **M12 is now complete: all 18 of SPEC's listed `/v1` endpoint rows are built, real, and integration-tested against the real DB.** | ✅ |
-| OpenAPI export to a file, TS codegen, rate limiting, caching, CORS to a real origin | ⬜ not started — the file-export path (`web/lib/api/openapi.json`) deliberately not created ahead of M13's own `web/` scaffold |
+| OpenAPI export to a file, TS codegen, rate limiting, caching | ✅ done during M13 (see that section's detail table) — `web/lib/api/openapi.json`, `make web-codegen`, `src/mq/api/ratelimit.py`, per-endpoint request-hash caches |
+| CORS to a real origin | ⬜ still not started — needs a real M14 deploy target first; defaults to the local dev origin |
 
 ---
 
@@ -275,7 +276,10 @@ comments) — that's the main remaining honesty caveat.
 | Playwright E2E, all 3 of SPEC §11's named flows (`web/tests/e2e/`) | ✅ "Overview loads", "Hedge Lab produces a result", "Track Record verifies chain" all pass against the real stack. Two real environment issues hit and fixed: (a) this sandbox blocks `cdn.playwright.dev`, so `playwright.config.ts` falls back to the full Chromium binary; (b) the suite must run `workers: 1` — parallel specs starve the one real synchronous, CPU-bound uvicorn dev process rather than testing anything real; (c) the hedge test's timeout needed real room (60s/45s, not 30s/15s) for a cold request-hash cache, matching `docs/methods/hedge.md`'s own ~8s uncached cost |
 | `pnpm run build` / `pnpm run lint` | ✅ both clean across all 9 pages |
 | **Lighthouse ≥ 90 — measured for real against a production build** (`next build && next start`, headless Chrome, SPEC's own "measured numbers only"): Overview 99/100/100/100, Pricing 98/100/100/100, Forecast 97/100/100/100, Risk 97/100/100/100, Hedge Lab 99/100/100/100, Basis Map 97/100/100/100, Track Record 99/100/100/100, Learn 98/100/100/100, Methods 99/100/100/100 (performance/accessibility/best-practices/SEO) | ✅ **gate met** — every page clears 90 in every category. Caught and fixed 2 real accessibility bugs in the process: `ContractCard`'s `<h3>` broke heading order under Overview's `<h1>` (now `<h2>`); `ThemeToggle`'s `aria-label` didn't contain its own visible text (now does); Track Record's coverage list used `<span>` children inside a `<dl>` (now a plain `<ul>`/`<li>`). Each cold-cache endpoint (greeks' model fit, basis, track-record's backtest) measured near-90/high-80s performance on a genuinely first-ever hit purely from that endpoint's own already-documented real cost (not a UI regression) — warms immediately after, scores above reflect the warm-cache measurement |
-| CORS real deployed origin, rate limiting, OpenAPI drift check in CI, TS client codegen in CI | ⬜ still the M12 hardening items, still deferred |
+| **Rate limiting** — SPEC §9.3's anon tier (60 req/min, fixed-window per client IP) | ✅ `src/mq/api/ratelimit.py`, wired into `mq.api.main` ahead of CORS (so a 429 still carries CORS headers); real RFC9457 `mq/rate-limited` problem+json on trip. **Not built**: the API-key tier (no key-issuance system exists) — stated, not silently skipped |
+| **OpenAPI/TS codegen drift check** | ✅ `make web-openapi-check` (new Makefile target) regenerates both files from the live app object and fails on any diff; wired into CI as `web-openapi-drift` (`.github/workflows/ci.yml`) |
+| **Web CI job** (`.github/workflows/ci.yml`'s new `web` job) | ✅ pnpm install + lint + build on every push/PR. **Not added**: Playwright E2E in CI — needs a seeded Postgres + running uvicorn + built web/ all up together at once, more than this job covers yet; stated as a gap, not silently missing |
+| CORS real deployed origin | ⬜ still an M12 hardening item (needs a real M14 deploy target first) |
 
 ---
 
@@ -333,7 +337,7 @@ comments) — that's the main remaining honesty caveat.
 | F16 | Basis-risk engine + heatmap | P1 | M10 | 🟨 engine done + real-run sanity-confirmed (cells nearest the real stations score highest correlation/hedge-effectiveness; basis risk measurably degrades with distance); GeoJSON output built, MapLibre rendering is M13 |
 | F17 | Parametric cover designer | P1 | M11 | ✅ done — real case study (SPEC's own stated synthetic Chennai delivery-rider exposure) cuts basis-failure probability 25.8%→3.2% at a tiny premium; also caught a real finding about the optimization objective itself (see M11 detail) |
 | F18 | Scenario lab (ENSO states, analog years, rain shocks) | P1 | M11 | ✅ done — 7 presets + real 2015 historical analog, real run against RAINCHNNAI confirms delta=1.0/gamma≈0 structurally across every shock, and the real 2015 analog lands close to the synthetic el_nino preset (internal consistency check) |
-| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ✅ 18 of 18 SPEC-listed endpoint rows built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/greeks/track-record/lineage); real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI auto-generates correctly but isn't yet exported to a file; TS client generation not started (needs M13's `web/`) |
+| F19 | Public REST API + OpenAPI + typed TS client | P0 | M12 | ✅ 18 of 18 SPEC-listed endpoint rows built (health/contracts/series-valuation/index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/scenarios-run/greeks/track-record/lineage); real envelope + RFC9457 errors, confirmed live via a real uvicorn run + curl, not just TestClient; OpenAPI exported to `web/lib/api/openapi.json` with a CI drift check; TS client generated via `openapi-fetch`; anon-tier rate limiting (60/min) live |
 | F20 | Next.js dashboard (9 pages) | P0 | M13 | ⬜ |
 | F21 | Track-record page (ledger vs outcomes, CRPS, PIT) | P0 | M13 | ⬜ |
 | F22 | Alerts (email/Telegram) | P2 | M14 | ⬜ |
@@ -418,39 +422,18 @@ M13 entries for the full list of what's real vs. simplified (Basis Map
 is a lon/lat scatter, not SPEC's literal MapLibre basemap) and the real
 bugs caught along the way (a CORS misconfiguration that silently
 blocked every browser-side call; 2 real accessibility defects Lighthouse
-itself caught). **M14 (deploy & harden) is next** -- not started: a
-public URL, scheduled jobs, Sentry, backups, 7 consecutive daily runs.
-Or M12's own remaining hardening items (OpenAPI CI drift check, TS
-codegen in CI, rate limiting, a real deployed CORS origin value) stay
-available too. Or a real MapLibre basemap for Basis Map, or the
+itself caught). M12's hardening items are now also done: OpenAPI
+export + CI drift check, TS codegen, anon-tier rate limiting (60/min),
+a `web` CI job (pnpm install/lint/build). **M14 (deploy & harden) is
+next** -- not started: a public URL, scheduled jobs, Sentry, backups, 7
+consecutive daily runs, and a real deployed CORS origin value (the one
+remaining M12 item, blocked on M14 existing at all). Or a real
+MapLibre basemap for Basis Map, Playwright E2E wired into CI, or the
 analog-years table / P-vs-Q overlay M13 left as honest gaps.
 
-M0-M12 are all done. **M12 (API) is complete**: all 18 of SPEC's
-listed `/v1` endpoint rows built (health/contracts/series-valuation/
-index/quotes/mpr/forecast/basis/ledger/hedge/parametric-design/
-scenarios-run/greeks/track-record/lineage), real envelope + RFC9457
-errors, confirmed via a real uvicorn run, real integration tests
-against the real DB (which also surfaced and fixed several genuine
-data/design/reliability gaps — see M12 detail, `docs/methods/api.md`
-— including a now-permanent fix for RAINCHNNAI's registration
-repeatedly going missing: `mq specs seed-registry` (`make
-seed-registry`), wired into `make check` itself, and a correction to
-an earlier wrong claim that no reusable model-fitting pipeline existed
-— it does, `mq.api.common.fit_real_chain_model` now wires it together,
-which is what made `scenarios/run` and `greeks` both tractable).
-`track-record` is a real, on-demand re-run of M7's 5-rung walk-forward
-backtest (~40-50s, cached), reproducing `docs/methods/forecasting.md`'s
-exact real numbers. `lineage` assembles real provenance across
-`contract_specs`/`valuations`/`index_values`/`prediction_ledger`,
-disclosing (not hiding) that `valuations.run_id` is `NULL` for every
-real row since no write path ever populated `model_runs`. **M13
-(dashboard) is next** -- not started at all. Or M12 hardening not yet
-done: OpenAPI file export, TS client codegen, rate limiting, real CORS
-origin (all deliberately deferred to/pending M13's `web/` scaffold).
-Or address an open blocker above (bhavcopy/MJO bot-gates block the
-most — M2's real market data, M6/M8's real calibration, and M11's own
-research outputs all wait on bhavcopy specifically). Worth considering
-alongside
-either: extending the IMD backfill back to 1951 for SPEC's literal
-statistical-holdout window (currently only 1991-2020+2023) — a data
-task, not a code task.
+Also worth considering, independent of M13/M14: addressing an open
+blocker above (bhavcopy/MJO bot-gates block the most — M2's real
+market data, M6/M8's real calibration, and M11's own research outputs
+all wait on bhavcopy specifically), or extending the IMD backfill back
+to 1951 for SPEC's literal statistical-holdout window (currently only
+1991-2020+2023) — a data task, not a code task.

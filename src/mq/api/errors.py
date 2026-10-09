@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 STALE_DATA = "mq/stale-data"
 UNKNOWN_SERIES = "mq/unknown-series"
 INFEASIBLE_HEDGE = "mq/infeasible-hedge"
+RATE_LIMITED = "mq/rate-limited"
 
 
 class MqApiError(Exception):

@@ -1,5 +1,5 @@
 .PHONY: bootstrap check seed-registry test-golden bench ingest reproduce dev down \
-	web-openapi web-codegen web-check web-e2e
+	web-openapi web-codegen web-openapi-check web-check web-e2e
 
 # macOS + uv quirk: `uv run` creates/touches the editable-install .pth file
 # with the UF_HIDDEN flag, which CPython 3.12's site.py silently skips,
@@ -54,6 +54,12 @@ json.dump(app.openapi(), open('web/lib/api/openapi.json', 'w'), indent=2)"
 
 web-codegen: web-openapi
 	cd web && pnpm run codegen
+
+# SPEC §9's "CI fails if stale": regenerates both files from the live
+# app object, then fails if that changed anything already committed --
+# the only way to actually prove they're not stale, vs. hoping.
+web-openapi-check: web-codegen
+	git diff --exit-code -- web/lib/api/openapi.json web/lib/api/types.ts
 
 web-check: web-codegen
 	cd web && pnpm run lint

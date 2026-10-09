@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from mq.api.errors import MqApiError, mq_api_error_handler
+from mq.api.ratelimit import RateLimiter, make_rate_limit_middleware
 from mq.api.routes import (
     contracts,
     greeks,
@@ -36,6 +37,14 @@ app = FastAPI(
         "Research analytics for India's exchange-traded rainfall futures. Not investment advice."
     ),
 )
+
+# SPEC §9.3: "Rate limit: 60 req/min anon" -- anon tier only, see
+# mq.api.ratelimit's own module docstring for what's not built (API
+# keys). Added before CORS below so CORS still wraps a 429 response
+# (Starlette's middleware stack is last-added-outermost) -- otherwise a
+# rate-limited browser request would look like a CORS failure, not a
+# 429, to the dashboard.
+app.middleware("http")(make_rate_limit_middleware(RateLimiter(limit_per_min=60)))
 
 # SPEC §12: "CORS restricted to the web origin" -- M13's web/ now exists
 # and calls this API directly from the browser (Hedge Lab's client-side
