@@ -573,6 +573,78 @@
         }
       }
     },
+    "/v1/series/{series_id}/forecast/analog-years": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Get Analog Years",
+        "description": "SPEC \u00a710 page 3's \"analog-years table\" -- which real historical\nseasons `analog_v1` actually used, for a live `as_of` (defaults to\ntoday). Not stored anywhere (the ledger row only carries the\nresulting quantiles, SPEC's own stated gap -- M7), so this is a\nreal, on-demand re-run of just the analog-selection step\n(`mq.forecasting.live.get_live_analog_forecast`), not the full\n4-rung live-forecast build `mq ledger write-live` does.",
+        "operationId": "get_analog_years_v1_series__series_id__forecast_analog_years_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "exclusiveMinimum": 0,
+              "default": 5,
+              "title": "K"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AnalogYearsData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/series/{series_id}/basis": {
       "get": {
         "tags": [
@@ -1157,6 +1229,50 @@
   },
   "components": {
     "schemas": {
+      "AnalogYearsData": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "target_year": {
+            "type": "integer",
+            "title": "Target Year"
+          },
+          "issue_date": {
+            "type": "string",
+            "title": "Issue Date"
+          },
+          "k": {
+            "type": "integer",
+            "title": "K"
+          },
+          "analog_years": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Analog Years"
+          },
+          "distances": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Distances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "target_year",
+          "issue_date",
+          "k",
+          "analog_years",
+          "distances"
+        ],
+        "title": "AnalogYearsData"
+      },
       "ChainBreakData": {
         "properties": {
           "row_id": {
@@ -1276,6 +1392,22 @@
           "sources"
         ],
         "title": "DataFreshnessData"
+      },
+      "Envelope_AnalogYearsData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnalogYearsData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[AnalogYearsData]"
       },
       "Envelope_ContractSpecData_": {
         "properties": {

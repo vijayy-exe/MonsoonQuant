@@ -224,6 +224,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/series/{series_id}/forecast/analog-years": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Analog Years
+         * @description SPEC §10 page 3's "analog-years table" -- which real historical
+         *     seasons `analog_v1` actually used, for a live `as_of` (defaults to
+         *     today). Not stored anywhere (the ledger row only carries the
+         *     resulting quantiles, SPEC's own stated gap -- M7), so this is a
+         *     real, on-demand re-run of just the analog-selection step
+         *     (`mq.forecasting.live.get_live_analog_forecast`), not the full
+         *     4-rung live-forecast build `mq ledger write-live` does.
+         */
+        get: operations["get_analog_years_v1_series__series_id__forecast_analog_years_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/series/{series_id}/basis": {
         parameters: {
             query?: never;
@@ -473,6 +499,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalogYearsData */
+        AnalogYearsData: {
+            /** Series Id */
+            series_id: string;
+            /** Target Year */
+            target_year: number;
+            /** Issue Date */
+            issue_date: string;
+            /** K */
+            k: number;
+            /** Analog Years */
+            analog_years: number[];
+            /** Distances */
+            distances: number[];
+        };
         /** ChainBreakData */
         ChainBreakData: {
             /** Row Id */
@@ -517,6 +558,11 @@ export interface components {
         DataFreshnessData: {
             /** Sources */
             sources: components["schemas"]["SourceFreshness"][];
+        };
+        /** Envelope[AnalogYearsData] */
+        Envelope_AnalogYearsData_: {
+            data: components["schemas"]["AnalogYearsData"];
+            meta: components["schemas"]["Meta"];
         };
         /** Envelope[ContractSpecData] */
         Envelope_ContractSpecData_: {
@@ -1552,6 +1598,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ForecastData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analog_years_v1_series__series_id__forecast_analog_years_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                k?: number;
+            };
+            header?: never;
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AnalogYearsData_"];
                 };
             };
             /** @description Validation Error */

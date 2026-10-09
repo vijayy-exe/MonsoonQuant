@@ -151,7 +151,13 @@ def test_get_forecast_returns_real_ledger_rows() -> None:
     data = resp.json()["data"]
     assert data["contract_code"] == "RAINCHNNAI"
     assert len(data["rows"]) >= 1
-    assert all(r["model_id"] == "clim_v1" for r in data["rows"])
+    # clim_v1 (M1) plus the 4 newer rungs' real live rows (M7's own
+    # stated gap, now closed -- mq.forecasting.live/`mq ledger
+    # write-live`) can both legitimately be present.
+    assert all(
+        r["model_id"] in {"clim_v1", "enso_clim_v1", "analog_v1", "lgbm_q_v1", "lgbm_q_cqr_v1"}
+        for r in data["rows"]
+    )
     assert "0.5" in data["rows"][0]["quantiles"]
 
 
@@ -496,6 +502,42 @@ def test_get_track_record_reproduces_real_m7_backtest_numbers_and_caches() -> No
     assert second_s < max(1.0, first_s / 5)
 
 
+def test_get_analog_years_returns_real_selection_and_caches() -> None:
+    """SPEC §10 page 3's "analog-years table" (M7's own stated live-row
+    gap) -- a real on-demand re-run of just `analog_v1`'s selection
+    step for a known-good `as_of` (2026-10-03, the last date real-time
+    IMD/ONI/DMI data actually covers). Nearest-first, k distinct years,
+    one distance per year. Cached by (contract, as_of, k)."""
+    t0 = time.time()
+    resp = client.get(
+        "/v1/series/RAINCHNNAI-OCT26/forecast/analog-years", params={"as_of": "2026-10-03"}
+    )
+    first_s = time.time() - t0
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["target_year"] == 2026
+    assert data["issue_date"] == "2026-10-03"
+    assert data["k"] == 5
+    assert len(data["analog_years"]) == 5
+    assert len(set(data["analog_years"])) == 5  # distinct years
+    assert len(data["distances"]) == 5
+    assert data["distances"] == sorted(data["distances"])  # nearest-first
+
+    t0 = time.time()
+    resp2 = client.get(
+        "/v1/series/RAINCHNNAI-OCT26/forecast/analog-years", params={"as_of": "2026-10-03"}
+    )
+    second_s = time.time() - t0
+    assert resp2.status_code == 200
+    assert resp2.json()["data"] == data
+    assert second_s < max(1.0, first_s / 5)
+
+
+def test_get_analog_years_unknown_series_is_404() -> None:
+    resp = client.get("/v1/series/NOPE-OCT26/forecast/analog-years")
+    assert resp.status_code == 404
+
+
 def test_get_lineage_assembles_real_provenance() -> None:
     """Real lineage for RAINCHNNAI-OCT26: the real spec version/source
     IDs, real valuations (burn+dist, both with a real, honestly-null
@@ -514,7 +556,12 @@ def test_get_lineage_assembles_real_provenance() -> None:
     assert all(v["run_id"] is None for v in data["valuations"])
     assert data["index"]["data_version"] is not None
     assert len(data["ledger"]) >= 1
-    assert all(r["model_id"] == "clim_v1" for r in data["ledger"])
+    # clim_v1 (M1) plus the 4 newer rungs' real live rows (M7's own
+    # stated gap, now closed) can both legitimately be present.
+    assert all(
+        r["model_id"] in {"clim_v1", "enso_clim_v1", "analog_v1", "lgbm_q_v1", "lgbm_q_cqr_v1"}
+        for r in data["ledger"]
+    )
     # hash-chain linkage: each row's prev_hash should be some earlier
     # row's own row_hash (or the genesis all-zero hash), not fabricated
     hashes = {r["row_hash"] for r in data["ledger"]}

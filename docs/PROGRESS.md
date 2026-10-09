@@ -5,6 +5,95 @@ measured numbers.
 
 ---
 
+## 2026-10-09 (cont.) — M7's live-row gap closed: real live forecasts for the 4 newer rungs, analog-years table goes real
+
+User-requested follow-up after the M12/M13 work: build the live-
+ledger-row writer for `enso_clim_v1`/`analog_v1`/`lgbm_q_v1`/
+`lgbm_q_cqr_v1` (SPEC §7's own stated gap, M7 -- `build_training_rows`
+structurally can't produce a row for the current, in-progress season),
+and wire the Forecast page's analog-years table to something real.
+
+- **`mq.forecasting.features.build_live_feature_row`**: a single real
+  live feature row (observed-to-date CDR anomaly, days_remaining,
+  oni/dmi) for `as_of`'s own in-progress season. Golden-tested against
+  hand-computed values (`tests/golden/test_live_feature_row_golden.py`,
+  5 tests, reusing `test_forecasting_features_golden.py`'s exact
+  fixture extended with a partial third season).
+- **`mq.forecasting.live.build_live_forecasts`** /
+  **`get_live_analog_forecast`**: real live forecasts for the 4 newer
+  rungs against real RAINCHNNAI data. `clim_v1` deliberately untouched
+  (its own M1 live-row history, "never modify ledger rows without
+  asking" extended to its *future* rows too).
+- **New CLI**: `mq ledger write-live --contract RAINCHNNAI [--as-of
+  DATE]`, idempotent. **Real rows written**: RAINCHNNAI, 2026-10-03,
+  all 4 rungs (e.g. `analog_v1` fair_value=949.3mm, 90% band
+  [375.0, 1687.2]mm), chain-verified after (`mq ledger verify` -> OK,
+  8 rows).
+- **New API endpoint**: `GET /v1/series/{id}/forecast/analog-years` --
+  a real, cheap (no LightGBM/CQR fitting) on-demand re-run of just
+  `analog_v1`'s selection step, cached by (contract, as_of, k). Real
+  result for RAINCHNNAI as of 2026-10-03: years [2015, 2002, 1997,
+  2018, 1991], nearest-first. Wired into the Forecast page's analog-
+  years table for real -- renders the real table when `analog_v1` is
+  selected, or an explicit "unavailable" state when real-time data
+  hasn't caught up to the requested date (see finding #4 below).
+
+**4 real bugs caught building this, not assumed away**:
+1. A `>=56M`-row `.unique()` dedup (defensive cross-source dedup
+   between historical and real-time rain_grid) cost real *minutes* for
+   a case that structurally can't happen (the two sources' date ranges
+   never overlap) -- the same shape of mistake M3's own `nearest_cell`
+   perf bug was. Fixed with a cheap assertion instead of a dedup.
+2. The real-time IMD parquet itself has **exact duplicate rows** for
+   some days -- same date/lat/lon/rain_mm *and* the same `raw_sha256`,
+   confirmed directly, a genuine double-write during ingestion, not a
+   DQ07-style revision. Deduped cheaply on the real-time frame alone
+   (~233k rows, not the >=56M-row historical set).
+3. **Column-order mismatch**: `build_training_rows` and
+   `build_live_feature_row` each do their own `oni`/`dmi` pivot, and
+   Polars doesn't guarantee matching column order between two
+   independently-built pivots -- broke `pl.concat` with "schema names
+   differ: got dmi, expected oni." Fixed with an explicit canonical
+   column order both frames get `.select()`-ed into first.
+4. **Real-world data latency, not a bug**: as of a `2026-10-03` live
+   request, ONI's own latest *published* value was for 2026-08, not
+   October -- confirmed directly by querying the real climate_idx
+   table. `build_training_rows`' exact issue-month join (correct for
+   historical rows -- every past month's ONI has long since been
+   published) is wrong for a live row; fixed by using the most
+   recently published value as of `as_of` instead, same as any real
+   operational forecasting system would have to.
+- Also moved `load_combined_rain_grid` (historical + real-time
+  rain_grid) from a one-off helper in `mq.ledger.cli` into
+  `mq.api.common` (the established shared-loaders module) once the new
+  `/forecast/analog-years` route needed it too -- avoids two divergent
+  copies of the same real fix.
+- **Two pre-existing tests broke from this real change, fixed, not
+  papered over**: `test_get_forecast_returns_real_ledger_rows` and
+  `test_get_lineage_assembles_real_provenance` both asserted "every
+  ledger row is `clim_v1`" -- true before this session, false now that
+  real `enso_clim_v1`/`analog_v1`/`lgbm_q_v1`/`lgbm_q_cqr_v1` rows
+  exist. Updated both to accept any of the 5 real model IDs.
+- **Operational lesson, logged for next time**: running `make check`'s
+  full pytest suite *concurrently* with a `uvicorn` instance serving
+  E2E tests drove this machine down to ~14MB free memory and silently
+  OOM-killed the API server mid-run (confirmed via `vm_stat`) -- both
+  independently load the same tens-of-millions-of-rows real datasets.
+  Fix: never run the two together; `make check` alone, then E2E alone.
+- `make check` green after all of this (84 mypy --strict files, full
+  pytest suite incl. the new golden + integration tests), full local
+  E2E suite (5/5, run alone) green too.
+
+**Gate status**: M7's live-row gap (SPEC §7, previously tracked as a
+known limitation) is closed. The Forecast page's analog-years table is
+now real, not a documented gap.
+
+**Next task**: M14 (deploy & harden) -- still needs the user's real
+infrastructure decisions. Everything else requested this session is
+done.
+
+---
+
 ## 2026-10-09 (cont.) — Playwright E2E wired into CI; 2 more real bugs caught by simulating it
 
 Closes the last stated M12/M13 CI gap. Didn't trust the design on

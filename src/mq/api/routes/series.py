@@ -13,7 +13,14 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from mq.api.common import BASIS_YEARS, load_rain_grid, load_resolved_spec, official_index_values
+from mq.api.common import (
+    BASIS_YEARS,
+    load_climate_idx,
+    load_combined_rain_grid,
+    load_rain_grid,
+    load_resolved_spec,
+    official_index_values,
+)
 from mq.api.deps import get_db
 from mq.api.errors import unknown_series
 from mq.api.schemas.envelope import Envelope, Meta
@@ -25,6 +32,7 @@ from mq.db.models import (
     PredictionLedgerRow,
     Valuation,
 )
+from mq.forecasting.live import get_live_analog_forecast
 from mq.risk.basis import basis_grid, to_geojson
 
 router = APIRouter(prefix="/v1/series", tags=["series"])
@@ -374,6 +382,75 @@ def get_forecast(
         data=ForecastData(series_id=series_id, contract_code=contract, rows=out_rows),
         meta=_now_meta(as_of=rows[-1].as_of_date, model_version=rows[-1].model_version),
     )
+
+
+class AnalogYearsData(BaseModel):
+    series_id: str
+    target_year: int
+    issue_date: str
+    k: int
+    analog_years: list[int]
+    distances: list[float]
+
+
+# Cached by (contract_code, as_of, k) -- same request-hash pattern as
+# `basis`/`track-record`: the dominant real cost here is
+# `build_training_rows`' own ~15-20s (station-average + 31-year table
+# build), same order as those endpoints, not something to repeat for
+# an identical request.
+_analog_years_cache: dict[tuple[str, str, int], AnalogYearsData] = {}
+
+
+@router.get("/{series_id}/forecast/analog-years")
+def get_analog_years(
+    series_id: str,
+    as_of: date | None = Query(default=None),
+    k: int = Query(default=5, gt=0, le=20),
+    db: Session = Depends(get_db),
+) -> Envelope[AnalogYearsData]:
+    """SPEC §10 page 3's "analog-years table" -- which real historical
+    seasons `analog_v1` actually used, for a live `as_of` (defaults to
+    today). Not stored anywhere (the ledger row only carries the
+    resulting quantiles, SPEC's own stated gap -- M7), so this is a
+    real, on-demand re-run of just the analog-selection step
+    (`mq.forecasting.live.get_live_analog_forecast`), not the full
+    4-rung live-forecast build `mq ledger write-live` does."""
+    contract_code = db.execute(
+        select(Contract.contract_code).where(Contract.series_id == series_id)
+    ).scalar_one_or_none()
+    if contract_code is None:
+        raise unknown_series(series_id)
+
+    effective_as_of = as_of if as_of is not None else date.today()
+    cache_key = (contract_code, effective_as_of.isoformat(), k)
+    cached = _analog_years_cache.get(cache_key)
+    if cached is not None:
+        return Envelope(data=cached, meta=_now_meta(as_of=effective_as_of))
+
+    spec = load_resolved_spec(db, series_id, contract_code)
+    rain_grid = load_combined_rain_grid(effective_as_of)
+    climate_idx = load_climate_idx(effective_as_of)
+    forecast = get_live_analog_forecast(
+        spec,
+        rain_grid,
+        climate_idx,
+        historical_years=BASIS_YEARS,
+        as_of=effective_as_of,
+        k=k,
+    )
+    data = AnalogYearsData(
+        series_id=series_id,
+        target_year=forecast.target_year,
+        issue_date=forecast.issue_date.isoformat(),
+        k=k,
+        # Nearest-first (`analog_forecast`'s own order) -- `analog_years`
+        # and `distances` are parallel arrays; sorting one without the
+        # other would desync which distance belongs to which year.
+        analog_years=forecast.analog_years,
+        distances=forecast.distances,
+    )
+    _analog_years_cache[cache_key] = data
+    return Envelope(data=data, meta=_now_meta(as_of=effective_as_of))
 
 
 # Process-lifetime cache, keyed by the exact request shape (SPEC's own

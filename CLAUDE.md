@@ -55,27 +55,31 @@ a missing model-fitting pipeline, corrected once `mq.api.common.
 fit_real_chain_model` proved it already existed). Full detail:
 `docs/STATUS.md`'s M12 section, `docs/methods/api.md`.
 
-**M13 (dashboard) and M12's hardening list are both done.** All 9
-pages built, real data or an honestly explained empty/simplified
-state (including a real MapLibre basemap on Basis Map, no API key).
-Lighthouse measured for real at ≥90/100 on every page/category.
-Playwright E2E wired into both local dev (4 specs against the real
-stack) and CI (2 of 4 — `hedge`/`basis` need real local IMD data a
-fresh CI checkout structurally can't have, confirmed empirically).
-OpenAPI export + CI drift check, TS codegen, anon-tier rate limiting
-(health-checks exempted), a `web` CI job: all done. Several real bugs
-were caught and fixed along the way (CORS, accessibility, a
-maplibre-gl worker-loading bug, a rate-limited health-check loop, an
-uncaught ledger-query error crashing a whole page) — full detail in
+**M13 (dashboard), M12's hardening list, and M7's live-row gap are all
+done now.** All 9 dashboard pages built, real data or an honestly
+explained empty/simplified state (including a real MapLibre basemap
+on Basis Map, no API key, and a real analog-years table on the
+Forecast page). Lighthouse ≥90/100 on every page/category. Playwright
+E2E wired into local dev (5 specs, real stack) and CI (2 of 5 —
+`hedge`/`basis` need real local IMD data a fresh CI checkout
+structurally can't have, confirmed empirically). OpenAPI export + CI
+drift check, TS codegen, anon-tier rate limiting (health-checks
+exempted), a `web` CI job: all done. `mq.forecasting.live` + `mq
+ledger write-live` produce real live rows for
+enso_clim_v1/analog_v1/lgbm_q_v1/lgbm_q_cqr_v1 (real RAINCHNNAI rows
+written as of 2026-10-03) — `clim_v1` deliberately untouched, its own
+existing M1 live-row history. Several real bugs were caught and fixed
+along the way this session (CORS, accessibility, a maplibre-gl
+worker-loading bug, a rate-limited health-check loop, an uncaught
+ledger-query error crashing a whole page, a >=56M-row dedup perf trap,
+duplicate real-time ingestion rows, a pivot column-order mismatch, a
+real ONI/DMI publication-lag data gap) — full detail in
 `docs/PROGRESS.md`'s 2026-10-09 entries, don't re-litigate here.
 
-**Two things are blocked on your call, not effort**: M14 (deploy &
-harden) needs real infra choices (host, domain, secrets). The
-Forecast page's analog-years table needs a new live-ledger-row writer
-for the newer forecasting rungs — a real feature touching the
-append-only prediction ledger, not a quick fix. The P-vs-Q overlay
-stays hard-blocked regardless (real NCDEX settlement data, bot-gated)
-— nothing to decide there.
+**One thing is blocked on your call, not effort**: M14 (deploy &
+harden) needs real infra choices (host, domain, secrets). The P-vs-Q
+overlay stays hard-blocked regardless (real NCDEX settlement data,
+bot-gated) — nothing to decide there.
 
 See docs/STATUS.md for the full breakdown, docs/PROGRESS.md for measured
 numbers, and docs/VERIFY.md / docs/DECISIONS.md for what's resolved vs.

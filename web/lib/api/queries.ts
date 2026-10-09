@@ -101,6 +101,24 @@ export async function getForecast(seriesId: string): Promise<Envelope<ForecastDa
   return data;
 }
 
+/**
+ * SPEC §10 page 3's "analog-years table". Real, not stored anywhere --
+ * a live on-demand re-run of just `analog_v1`'s own selection step
+ * (first hit ~14s uncached, cached after by (contract, as_of, k)).
+ * Returns null on error -- most commonly a real data gap (e.g. ONI/DMI
+ * not yet published for the current month), an honest-empty case, not
+ * a page-breaking one.
+ */
+export async function getAnalogYears(
+  seriesId: string,
+): Promise<Envelope<components["schemas"]["AnalogYearsData"]> | null> {
+  const { data, error } = await api.GET("/v1/series/{series_id}/forecast/analog-years", {
+    params: { path: { series_id: seriesId }, query: {} },
+  });
+  if (error) return null;
+  return data;
+}
+
 export async function getGreeks(seriesId: string): Promise<Envelope<GreeksData> | null> {
   const { data, error } = await api.GET("/v1/series/{series_id}/greeks", {
     params: { path: { series_id: seriesId }, query: {} },

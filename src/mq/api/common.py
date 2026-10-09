@@ -20,7 +20,7 @@ from mq.forecasting.features import station_average_daily_series
 from mq.index.lpa import DailyLPA, compute_daily_lpa
 from mq.io.asof import read_as_of
 from mq.pipelines.climate_idx import PARQUET_DIR as CLIMATE_IDX_PARQUET_DIR
-from mq.pipelines.imd import PARQUET_DIR
+from mq.pipelines.imd import PARQUET_DIR, REALTIME_PARQUET_DIR
 from mq.pricing.burn import build_burn_sample
 from mq.pricing.simulator_glm import ChainModel, attach_monthly_covariate, fit_chain_model
 from mq.specs.contract import ContractSpec
@@ -61,11 +61,61 @@ def load_resolved_spec(db: Session, series_id: str, contract_code: str) -> Contr
 
 def load_rain_grid(as_of: date) -> pl.DataFrame:
     """The real IMD rain grid, bounded by the as_of-aware `mq.io` layer
-    (SPEC §0.4-3 -- never read data without it)."""
+    (SPEC §0.4-3 -- never read data without it). Historical backfill
+    only (`PARQUET_DIR`) -- every one of this function's callers so far
+    (basis/hedge/parametric/track-record/scenarios/greeks) only ever
+    evaluates *complete, closed* historical seasons, so the separate
+    real-time directory (`load_combined_rain_grid`, below) was never
+    needed until a *live* forecast for the current, in-progress season
+    needed it (M7's `mq.forecasting.live`)."""
     return read_as_of(
         loader=lambda: pl.read_parquet(f"{PARQUET_DIR}/**/*.parquet", hive_partitioning=True),
         date_col="date",
         as_of=as_of,
+    )
+
+
+_RAIN_GRID_COLS = ["date", "lat", "lon", "rain_mm"]
+
+
+def load_combined_rain_grid(as_of: date) -> pl.DataFrame:
+    """`load_rain_grid` plus the real-time directory -- needed for
+    anything touching the *current* in-progress season (M7's live
+    forecasts). Each source is independently `as_of`-bounded, then
+    concatenated.
+
+    Two real, found-not-assumed issues this function exists to handle
+    correctly, not silently: (1) deduping across the full historical+
+    real-time concat (tens of millions of rows) cost real minutes for
+    a case that can't happen -- the two sources' date ranges never
+    overlap (historical ends 2023-12-31, real-time starts 2026-09-01),
+    checked by assertion instead; (2) the real-time parquet itself has
+    exact duplicate rows for some days (same raw_sha256, a genuine
+    double-write, not a DQ07-style revision) -- deduped cheaply since
+    that source alone is ~233k rows, not >=56M."""
+    historical = read_as_of(
+        loader=lambda: pl.read_parquet(f"{PARQUET_DIR}/**/*.parquet", hive_partitioning=True),
+        date_col="date",
+        as_of=as_of,
+    )
+    realtime = read_as_of(
+        loader=lambda: pl.read_parquet(
+            f"{REALTIME_PARQUET_DIR}/**/*.parquet", hive_partitioning=True
+        ),
+        date_col="date",
+        as_of=as_of,
+    )
+    realtime = realtime.unique(subset=_RAIN_GRID_COLS, keep="first")
+
+    if historical.height > 0 and realtime.height > 0:
+        latest_historical = str(historical["date"].max())
+        earliest_realtime = str(realtime["date"].min())
+        assert latest_historical < earliest_realtime, (
+            f"historical ({latest_historical}) and real-time ({earliest_realtime}) rain_grid "
+            "sources now overlap -- the no-dedup-across-sources assumption no longer holds"
+        )
+    return pl.concat([historical.select(_RAIN_GRID_COLS), realtime.select(_RAIN_GRID_COLS)]).sort(
+        "date"
     )
 
 

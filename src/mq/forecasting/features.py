@@ -157,7 +157,15 @@ def build_training_rows(
     if not season_frames:
         raise ValueError("no training rows could be built -- check data coverage for `years`")
     rows = pl.concat(season_frames)
+    rows = _join_oni_dmi(rows, climate_idx)
+    if rows.height == 0:
+        raise ValueError("no training rows could be built -- no ONI/DMI coverage for `years`")
+    return rows
 
+
+def _join_oni_dmi(rows: pl.DataFrame, climate_idx: pl.DataFrame) -> pl.DataFrame:
+    """Shared by `build_training_rows` and `build_live_feature_row` so
+    the two can never silently diverge on how ONI/DMI get attached."""
     covariates = (
         climate_idx.filter(pl.col("index").is_in(["oni", "dmi"]))
         .with_columns(
@@ -165,12 +173,117 @@ def build_training_rows(
         )
         .pivot(on="index", index=["cov_year", "cov_month"], values="value")
     )
-    rows = rows.join(
+    return rows.join(
         covariates,
         left_on=["year", "issue_month"],
         right_on=["cov_year", "cov_month"],
         how="inner",  # drop rows whose issue-month has no ONI/DMI coverage
     )
-    if rows.height == 0:
-        raise ValueError("no training rows could be built -- no ONI/DMI coverage for `years`")
-    return rows
+
+
+def build_live_feature_row(
+    spec: ContractSpec,
+    rain_grid: pl.DataFrame,
+    climate_idx: pl.DataFrame,
+    as_of: date,
+) -> pl.DataFrame:
+    """One row of real, live features for `as_of`'s own in-progress
+    season (SPEC §7's own stated gap, M7: "needs a separate live-row
+    builder for the in-progress season"). `build_training_rows` can
+    never produce this row -- it structurally requires a *complete*
+    season, which the current one, by definition, isn't yet.
+
+    Same schema as `build_training_rows`' output (so the two concatenate
+    directly for a live forecast call), except `target_remaining_rain_mm`
+    is NaN: genuinely unknown until the season closes, and never read by
+    any rung's live-prediction path (`analog_forecast`,
+    `enso_conditioned_remaining_rain_forecast`, and the LightGBM rungs'
+    prediction step all read only the feature columns off the target
+    row -- confirmed by reading each, not assumed) -- only a
+    walk-forward *backtest* reads it, and that never calls this
+    function."""
+    if not isinstance(spec.index.period_start, MonthDay) or not isinstance(
+        spec.index.period_end, MonthDay
+    ):
+        raise TypeError("expected a resolved period_start/period_end")
+    if not isinstance(spec.stations, list):
+        raise TypeError("expected a resolved station list")
+    if not isinstance(spec.index.lpa, LPARef):
+        raise TypeError("expected a resolved LPA reference")
+
+    year = as_of.year
+    period_start = date(year, spec.index.period_start.month, spec.index.period_start.day)
+    period_end = date(year, spec.index.period_end.month, spec.index.period_end.day)
+    if not (period_start <= as_of < period_end):
+        raise ValueError(
+            f"as_of={as_of} is outside this contract's open season window "
+            f"[{period_start}, {period_end}) for {year} -- nothing live to forecast"
+        )
+
+    avg_series = station_average_daily_series(rain_grid, spec.stations)
+    lpa_table = _climatological_daily_mean(
+        avg_series,
+        base_period_start_year=spec.index.lpa.base_period_start_year,
+        base_period_end_year=spec.index.lpa.base_period_end_year,
+    )
+
+    season_to_date = avg_series.filter(
+        (pl.col("date") >= period_start) & (pl.col("date") <= as_of)
+    ).sort("date")
+    expected_days = (as_of - period_start).days + 1
+    if season_to_date.height != expected_days:
+        raise ValueError(
+            f"{year}: missing daily rainfall between {period_start} and {as_of} -- "
+            "a real data gap, not something to guess past"
+        )
+
+    season_to_date = season_to_date.with_columns(
+        pl.col("date").dt.month().alias("month"), pl.col("date").dt.day().alias("day")
+    ).join(lpa_table, on=["month", "day"], how="left")
+    if season_to_date["lpa_mm"].null_count() > 0:
+        raise ValueError(
+            f"{year}: missing LPA value for a calendar day between {period_start} and {as_of}"
+        )
+
+    observed_to_date_anomaly_mm = float(
+        (season_to_date["rain_mm"] - season_to_date["lpa_mm"]).sum()
+    )
+    days_remaining = (period_end - as_of).days
+
+    row = pl.DataFrame(
+        {
+            "year": [year],
+            "issue_date": [as_of],
+            "issue_month": [as_of.month],
+            "issue_day": [as_of.day],
+            "days_remaining": [days_remaining],
+            "observed_to_date_anomaly_mm": [observed_to_date_anomaly_mm],
+            "target_remaining_rain_mm": [float("nan")],
+        }
+    )
+
+    # Deliberately NOT `_join_oni_dmi`'s exact issue-month match: that's
+    # correct for historical rows (every past month's ONI/DMI has long
+    # since been published), but a real, found-not-assumed problem for
+    # a LIVE row -- NOAA/BoM publish a month's ONI/DMI with a real lag
+    # (confirmed directly: as of a 2026-10-03 `as_of`, ONI's own latest
+    # published value was for 2026-08, not October). A live forecast
+    # uses the most recently *published* value as of `as_of`, same as
+    # any real operational system would have to.
+    latest_covariates = (
+        climate_idx.filter(pl.col("index").is_in(["oni", "dmi"]))
+        .sort("date")
+        .group_by("index")
+        .last()
+        .select("index", "value")
+    )
+    if latest_covariates.height < 2:
+        raise ValueError(f"no published ONI/DMI value at all as of {as_of}")
+    row = row.join(
+        latest_covariates.filter(pl.col("index") == "oni").select(pl.col("value").alias("oni")),
+        how="cross",
+    ).join(
+        latest_covariates.filter(pl.col("index") == "dmi").select(pl.col("value").alias("dmi")),
+        how="cross",
+    )
+    return row

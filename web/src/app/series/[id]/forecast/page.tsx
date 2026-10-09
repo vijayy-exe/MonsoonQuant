@@ -2,7 +2,7 @@ import { LineBand, type LineBandPoint } from "@/components/charts/line-band";
 import { EmptyState } from "@/components/empty-state";
 import { Lineage } from "@/components/lineage";
 import { SeriesTabs } from "@/components/series-tabs";
-import { getForecast, getIndexPath } from "@/lib/api/queries";
+import { getAnalogYears, getForecast, getIndexPath } from "@/lib/api/queries";
 
 export const instant = false;
 
@@ -36,6 +36,8 @@ export default async function ForecastPage({
         label: p.obs_date,
       }))
     : undefined;
+
+  const analogYears = activeModel === "analog_v1" ? await getAnalogYears(id) : null;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -95,12 +97,49 @@ export default async function ForecastPage({
 
       <section className="mt-10">
         <h2 className="text-sm font-semibold text-foreground">Analog years</h2>
-        <div className="mt-4">
-          <EmptyState
-            title="Not exposed via the API yet"
-            detail="analog_v1's chosen k=5 nearest seasons aren't part of /v1/series/{id}/forecast's response shape — only its resulting quantiles are. Would need a new field, not fabricated here."
-          />
-        </div>
+        {activeModel !== "analog_v1" ? (
+          <p className="mt-2 text-xs text-muted">
+            Only applies to the analog_v1 model — switch to it above to see which
+            historical seasons it picked.
+          </p>
+        ) : analogYears ? (
+          <div className="mt-4">
+            <p className="text-xs text-muted">
+              <Lineage meta={analogYears.meta} method="analog_v1 live selection">
+                target year {analogYears.data.target_year}, issue date{" "}
+                {analogYears.data.issue_date}, k={analogYears.data.k}
+              </Lineage>
+              {" — a live re-run of the real selection step, nearest first."}
+            </p>
+            <table className="mt-3 w-full max-w-sm text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th className="pb-2 pr-4">rank</th>
+                  <th className="pb-2 pr-4">analog year</th>
+                  <th className="pb-2">distance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analogYears.data.analog_years.map((year, i) => (
+                  <tr key={year} className="border-t border-border">
+                    <td className="py-1.5 pr-4 text-muted">{i + 1}</td>
+                    <td className="py-1.5 pr-4 font-mono">{year}</td>
+                    <td className="py-1.5 font-mono text-muted">
+                      {analogYears.data.distances[i]?.toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <EmptyState
+              title="Analog selection unavailable"
+              detail="Couldn't run the live selection for today — most likely a real data gap (e.g. this month's ONI/DMI not published yet, or a rain-grid ingestion gap), not a fabricated result."
+            />
+          </div>
+        )}
       </section>
     </div>
   );

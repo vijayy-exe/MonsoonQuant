@@ -171,7 +171,21 @@ comments) — that's the main remaining honesty caveat.
 | `mq.forecasting.evaluate`: CRPS/CRPSS/pinball/coverage/PIT + walk-forward harness | ✅ enforces "train ≤ year y-1" structurally (combines only strictly-prior years + the single target row before calling the model) |
 | **Real walk-forward backtest, RAINCHNNAI, n=2,541 predictions/model, all 5 rungs** | ✅ **honest finding, consistent across every newer rung**: climatology baseline CRPS=156.44; `enso_clim_v1`=165.44 (CRPSS=-0.058); `analog_v1`=182.27 (-0.165); `lgbm_q_v1`=194.03 (-0.240); `lgbm_q_cqr_v1`=201.92 (-0.291) — every added-complexity rung underperforms plain climatology at n=31 seasons. None retuned to chase a positive number (would overfit the backtest itself). **But conformal calibration does what it's built to do**: `analog_v1`/`lgbm_q_v1` under-cover badly (31.9%/60.9% and 33.1%/68.6% vs. 50%/90% nominal); `lgbm_q_cqr_v1`'s coverage (45.5%/86.3%) comes in much closer to nominal than the uncalibrated model it corrects — the mechanism measurably works even though it doesn't rescue CRPS. Full write-up: `docs/methods/forecasting.md` |
 | `tft_v1` (P2) | ⬜ **deliberately skipped, reasoning on record**: SPEC itself calls this a weak candidate at ≈120 seasons; this project's real n=31 is well below even that |
-| Live ledger rows for the 4 newer rungs | ⬜ needs a separate "live row" builder for the in-progress 2026 season — `build_training_rows` requires a *complete* historical season, so it can't produce today's own row as-is |
+| Live ledger rows for the 4 newer rungs | ✅ done (M13 follow-up, below) |
+
+---
+
+## M7 live-rows detail (the 4 newer rungs' own live-forecast gap, now closed)
+
+| Item | Status |
+|---|---|
+| `mq.forecasting.features.build_live_feature_row` | ✅ a single real live row (observed-to-date anomaly, days_remaining, oni/dmi) for the *current, in-progress* season — `build_training_rows` structurally can't produce this (it requires a *complete* season). Golden-tested (`tests/golden/test_live_feature_row_golden.py`, hand-computed, 5 tests) |
+| `mq.api.common.load_combined_rain_grid` | ✅ historical backfill + the separate real-time directory (`load_rain_grid` alone only ever read the former — invisible until a live forecast needed today's real-time rainfall, which none of basis/hedge/parametric/track-record/scenarios/greeks ever touch) |
+| `mq.forecasting.live.build_live_forecasts` / `get_live_analog_forecast` | ✅ real live forecasts for `enso_clim_v1`/`analog_v1`/`lgbm_q_v1`/`lgbm_q_cqr_v1`, as of a given date, against the real RAINCHNNAI spec + real IMD/ONI/DMI. `clim_v1` deliberately untouched (its own existing M1 live-row history, "never modify ledger rows without asking" extended to not silently changing how its *future* rows get produced either) |
+| `mq ledger write-live --contract RAINCHNNAI [--as-of DATE]` | ✅ new CLI command, idempotent (SPEC §8.1). **Real rows written**: RAINCHNNAI, 2026-10-03, all 4 rungs, chain-verified (`mq ledger verify`) |
+| `GET /v1/series/{id}/forecast/analog-years` | ✅ new API endpoint — real, on-demand re-run of just `analog_v1`'s selection step (cheap relative to the full 4-rung build: no LightGBM/CQR fitting), cached by (contract, as_of, k). Wired into the Forecast page's analog-years table for real |
+| **4 real bugs caught building this, not assumed away** | ✅ (1) a **>=56M-row `.unique()` dedup cost real minutes** for a cross-source case (historical vs. real-time) that structurally can't happen (date ranges never overlap) — fixed with an assertion instead; (2) the real-time parquet itself has **exact duplicate rows** for some days (same `raw_sha256` — a genuine double-write, not a DQ07-style revision) — deduped cheaply on the much smaller real-time frame only; (3) **column-order mismatch** between two independently-built `oni`/`dmi` pivots broke `pl.concat` — fixed with an explicit canonical column order; (4) **ONI/DMI publication lag is real**: as of a 2026-10-03 `as_of`, ONI's own latest published value was for 2026-08, not October — a live forecast now uses the most recently *published* value, not an exact issue-month match (correct for historical rows, wrong for live ones) |
+| Tests | ✅ 5 golden (synthetic, hand-computed) + 2 real-data integration tests (`tests/integration/test_live_forecast_write.py`) + 2 real API integration tests (analog-years endpoint, incl. caching) |
 
 ---
 
@@ -265,7 +279,7 @@ comments) — that's the main remaining honesty caveat.
 | `Lineage` component — hover/focus reveals a value's real envelope `meta` | ✅ used throughout |
 | **1 — Overview `/`** | ✅ real contract cards, season progress, freshness pills — see 2026-10-09 PROGRESS entry for exact numbers |
 | **2 — Pricing** `/series/[id]/pricing` | ✅ real burn/dist comparison bars w/ real 90% intervals; conditioned/mpr render explicit "not available" cards (real reason, not a fake bar); P-vs-Q overlay honest-empty (no real λ yet) |
-| **3 — Forecast** `/series/[id]/forecast` | ✅ real fan-chart-shaped line+band from `prediction_ledger`, model switcher, observed-to-date overlay. Analog-years table not built — not in the API response shape, said so rather than fabricated |
+| **3 — Forecast** `/series/[id]/forecast` | ✅ real fan-chart-shaped line+band from `prediction_ledger`, model switcher, observed-to-date overlay. **Analog-years table now real** (M13 follow-up) — `GET /v1/series/{id}/forecast/analog-years`, a live on-demand re-run of `analog_v1`'s own selection step; UI shows the real table when `analog_v1` is selected, or an honest "unavailable" state when real-time data hasn't caught up to the requested date yet (a genuine, confirmed real-world latency, not a bug) |
 | **4 — Risk** `/series/[id]/risk` | ✅ real delta/gamma/theta tiles (SE/pairing); value-vs-rain curve is a labeled local quadratic approximation from the same real delta/gamma, not a full repricing sweep; λ chart honest-empty |
 | **5 — Hedge Lab** `/hedge` | ✅ real `POST /v1/hedge` from a client-side form, min-variance + CVaR95 shown side by side, surfaces the real degenerate-CVaR-cap finding inline. **Found and fixed a real CORS bug** while E2E-testing this (see below) |
 | **6 — Basis Map** `/basis` | ✅ a real MapLibre GL map (not a simplified scatter) over MapLibre's own free public demo tile style (no API key/account; a real M14 deploy would swap in a provider with an SLA) — real per-cell stats as a GeoJSON circle layer (sequential color ramp via a MapLibre `interpolate` expression, metric toggle, click-to-inspect panel). **Real bug caught by Lighthouse, fixed**: maplibre-gl's worker script failed to load under Next.js/Turbopack's bundler ("Worker failed to load", a 404 served as `text/html`) and silently fell back to blocking the main thread for tile parsing — tanked performance to 47/100. Fixed by serving the worker bundle as a static file (`public/maplibre-gl-worker.mjs`) and calling `maplibregl.setWorkerUrl()` explicitly (47→70). The remaining cost (WebGL init genuinely blocks ~2s of main-thread time) is deferred past the critical render path via `requestIdleCallback` behind a skeleton loader (SPEC's own UX rule) — 70→93, clearing the gate. Per-cell scatter-vs-index not built — `/basis` returns only aggregates, no raw paired series |
@@ -430,17 +444,22 @@ bug; a rate-limited health-check loop; an uncaught ledger-query error
 that crashed the whole Track Record page instead of degrading one
 section).
 
-**Two things genuinely need your decision before they can move**:
-M14 (deploy & harden) needs real infra choices (hosting provider,
-domain, secrets) only you can make -- not started. The Forecast page's
-analog-years table needs a live-ledger-row writer for the newer
-forecasting rungs that doesn't exist yet (`analog_v1`'s own chosen
-years ARE already computed internally, just never written anywhere
-reachable) -- a real, scoped feature, not a quick fix, and it touches
-the append-only prediction ledger, so it's flagged rather than built
-unprompted. The P-vs-Q overlay stays hard-blocked regardless (needs
-real NCDEX settlement data, bot-gated) -- nothing to decide there, it
-just isn't actionable.
+**M7's live-row gap is now closed too** (`mq.forecasting.live`, `mq
+ledger write-live`) -- real enso_clim_v1/analog_v1/lgbm_q_v1/
+lgbm_q_cqr_v1 ledger rows for RAINCHNNAI as of 2026-10-03, and the
+Forecast page's analog-years table is real (`GET /v1/series/{id}/
+forecast/analog-years`). See this file's M7 live-rows detail and
+docs/PROGRESS.md's 2026-10-09 entry for the 4 real bugs caught
+building it (a missing-default-export build break; a >=56M-row
+`.unique()` perf trap; duplicate real-time ingestion rows; a column-
+order mismatch between two independently-built pivots; a real-world
+ONI/DMI publication-lag data gap).
+
+**One thing still genuinely needs your decision**: M14 (deploy &
+harden) needs real infra choices (hosting provider, domain, secrets)
+only you can make -- not started. The P-vs-Q overlay stays hard-
+blocked regardless of any decision (needs real NCDEX settlement data,
+bot-gated) -- nothing to decide there, it just isn't actionable.
 
 Also worth considering, independent of the above: addressing the
 bhavcopy/MJO bot-gate blockers (M2's real market data, M6/M8's real
