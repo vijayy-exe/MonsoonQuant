@@ -5,6 +5,131 @@ measured numbers.
 
 ---
 
+## 2026-10-11 — M8's forecast-conditioned pricing written to `valuations` for real, plus a stale-UI bug and 2 test updates
+
+Same-day follow-up to the MPR entry above: with real M8 code already
+built (§4 of `docs/methods/conditioned.md`) but never persisted, closed
+it the same way M4/M6 just were.
+
+- **Real run**: h=30 days, n_paths=20,000, real as_of=2026-10-09 (the
+  latest day with real-time rainfall on disk), `start_state=0` (that
+  day was genuinely dry -- real avg rainfall 0.0mm, not assumed),
+  `overdispersion_sd=0.3740` calibrated against the real official
+  index's own sd (same pattern M11's scenario lab already uses, not a
+  hardcoded illustrative constant). **fair_value=810.3mm, 90% band
+  340.7-1482.5mm** -- genuinely divergent from burn (905.6mm) and dist
+  (902.7mm), because it's the only method conditioning on the current
+  season's actual below-average recent rainfall.
+- Renamed `mq.pricing.writer.write_q_measure_valuation` ->
+  `write_valuation` before reusing it here -- it was already fully
+  generic (method/measure are plain params), the Q-specific name was
+  just about to become misleading for a P-measure row. Updated its one
+  test file's imports/names to match.
+- Written via `write_valuation(method="conditioned", measure="P")` to
+  all 3 RAINCHNNAI series; live on `/v1/series/{id}/valuations/compare`
+  and the Pricing page's "Method comparison" bars with zero read-side
+  code changes -- the endpoint already surfaces whatever real rows
+  exist.
+- **A real stale-UI bug caught and fixed**: the Pricing page still
+  showed "Market price of risk (Q) — not yet available" directly above
+  the new, real P-vs-Q section built earlier today -- contradicting it.
+  Root cause: `method="mpr"` was never a real value in the `valuations`
+  table (no row has ever had it); the page's `builtMethods` list
+  conflated it with a real method name from the start. Removed "mpr"
+  from that list entirely; the P-vs-Q section is now the one real place
+  Q-measure status is shown.
+- **2 pre-existing integration tests updated, not reverted**:
+  `test_get_quotes_returns_empty_not_error_bhavcopy_bot_gated` and
+  `test_get_mpr_returns_empty_not_error_no_real_settlement_data`
+  asserted RAINCHNNAI-OCT26's quotes/mpr were empty -- true before
+  today's real bhavcopy ingestion and MPR calibration, false now. Split
+  each into a "real data" test (RAINCHNNAI-OCT26, asserts the actual
+  real rows) and a "still honestly empty" test (RAINMUMBAI-JUN26, which
+  really has no bhavcopy/mpr data yet) -- keeps both code paths real,
+  rather than just deleting the now-failing assertion.
+- 30-day horizon is a stated judgment call, not derived from data (no
+  single "the" horizon exists per §4's own non-monotonic band-width
+  table) -- documented as such in `docs/methods/conditioned.md` §5
+  rather than left silent.
+
+**Gate status:** no milestone gate changes -- completes already-`✅` M8
+(it was "done" in the sense of built-and-demoed, now also persisted and
+live, matching M4/M6's same day).
+
+**Next task:** applying the real M6 λ (now real, see the entry above)
+to this conditioned payoff specifically -- mechanically straightforward
+on what's built, not yet done as its own script.
+
+---
+
+## 2026-10-11 — M6's first real calibration: the bhavcopy manual-download path, exercised for real
+
+User manually downloaded 2 real NCDEX bhavcopy CSVs (UDiFF format,
+through ncdex.com/markets/bhavcopy -- the automated API fetch stays
+bot-gated, not worked around) covering 2026-10-05 and 2026-10-06, and
+handed them over. First real market data and first real, non-
+illustrative market-price-of-risk calibration this project has ever
+had.
+
+- **Ingested for real**: `mq run bhavcopy` (new CLI command, src/mq/
+  pipelines/daily_cli.py) parsed both files, hashed them immutably,
+  filtered to RAINCHNNAI, ran the DQ gate, and wrote 6 real
+  `market_quotes` rows (3 series x 2 dates). **Every row has zero
+  volume and zero open interest** -- NCDEX publishes a daily settle
+  regardless, but nobody has traded either contract yet. Answers
+  VERIFY V11 for real, for the first time: not actively trading, as of
+  now.
+- **Real M6 calibration**: all 12 (series x date x transform)
+  combinations converged cleanly against the real M4 burn sample
+  (n=31, mean=905.6mm) -- Wang lambda and Esscher theta both land
+  small and positive (~0.02-0.06), agreeing closely with each other
+  (SPEC's own Wang-vs-Esscher consistency check, now real). New
+  `mq.mpr.writer.write_mpr_estimate` persists each estimate with its
+  real bootstrap 90% CI (built on the existing, already-tested
+  `bootstrap_parameter_ci`). New `mq.pricing.writer.
+  write_q_measure_valuation` persists the real Q-measure prices
+  themselves (`measure="Q_wang"`/`"Q_esscher"`) -- by construction
+  these reproduce the calibration settle exactly, the correct sanity
+  check.
+- **Wired into the live dashboard, not just the DB**: Pricing page's
+  "Payoff distribution -- P vs Q" section and Risk page's "lambda --
+  market price of risk" chart both went from a hardcoded empty state
+  to real data for RAINCHNNAI. Both ship an explicit zero-volume
+  caveat (SPEC §7.5: "exclude zero-volume days from headline lambda...
+  report them separately") -- framed as an early thin-market estimate,
+  never a headline number.
+- **3 real bugs found and fixed while wiring this, not papered over**:
+  1. The real bhavcopy's own column header is `FininstrmActlXpryDt`
+     (lowercase i), not `FinInstrmActlXpryDt` as the registered schema
+     spec states -- harmless to parsing (column unused downstream),
+     fixed the schema dict (and its 2 test fixtures) to match the real
+     file.
+  2. Pricing page's "Method comparison" bars matched by key *prefix*
+     (`burn/`) -- would have silently shown a `burn/Q_wang` row
+     instead of `burn/P` the moment Q-measure rows existed for a
+     method. Fixed to match `measure` exactly; verified live (burn/
+     dist bars still show the real P-measure numbers, 905.6mm/902.7mm,
+     unchanged).
+  3. Risk page's lambda chart plotted *every* `mpr_estimates` point --
+     Wang and Esscher both -- on one undifferentiated line, invisible
+     with only illustrative/no data, silently zigzagging between
+     lambda and theta at each shared as_of_date the moment real
+     2-transform data existed. Fixed: Wang is the primary series (with
+     its CI band), Esscher overlays as a labeled dashed secondary,
+     reusing the same pattern the Forecast page already uses.
+- Full real numbers and write-up: `docs/methods/mpr.md` §6.
+
+**Gate status:** no milestone gate changes -- hardens already-`✅` M6,
+and un-blocks (partially) M8/M13's Q-measure-dependent pieces for
+RAINCHNNAI specifically. RAINMUMBAI has no bhavcopy data yet.
+
+**Next task:** your call. More real trading days (same manual-download
+path, same `mq run bhavcopy` command) would unlock a real Bayesian
+pool across dates and the lambda-vs-days-to-expiry/volume research
+plots. A RAINMUMBAI bhavcopy would extend M6 to the second contract.
+
+---
+
 ## 2026-10-11 — RAINMUMBAI had never been priced at all; a user-supplied gap analysis flagged it (and 5 things that weren't bugs)
 
 User shared an independent "gap analysis" document's findings and asked

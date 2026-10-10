@@ -144,7 +144,7 @@ comments) — that's the main remaining honesty caveat.
 
 ---
 
-## M6 detail (market price of risk — machinery done, real calibration blocked)
+## M6 detail (market price of risk — machinery done, real calibration done 2026-10-11)
 
 | Item | Status |
 |---|---|
@@ -153,8 +153,8 @@ comments) — that's the main remaining honesty caveat.
 | `mq.mpr.calibrate`: Brent-solved λ/θ to match a settle price, bounded [-3,3] | ✅ round-trip tests recover a known generating λ/θ exactly; unreachable settle reports the nearer corner (`converged=False`) instead of crashing |
 | `mq.mpr.uncertainty`: (a) bootstrap over resampled years, (b) closed-form delta-method MC error, (c) Bayesian pooling across dates (weak N(0,1) prior, liquidity-weighted) | ✅ all three built, tested independently of real market data |
 | Illustrative end-to-end run against the real M4 burn sample + real kde_cv distribution | ✅ settle=P-mean recovers λ=θ=0 exactly; settle above/below the mean recovers the predicted sign. Full uncertainty pipeline run at an illustrative settle=1000mm: bootstrap band [-0.042, 0.831] (wide — n=31 is thin), 3-date illustrative Bayesian pool [0.027, 0.485]. See `docs/methods/mpr.md` |
-| **Real calibration against actual NCDEX settlement prices/volumes** | ⬜ **blocked, not a code gap** — bhavcopy fetch is bot-gated, same root cause as M2. Nothing to calibrate against yet |
-| Research outputs (λ vs. days-to-expiry, λ vs. volume, Wang-vs-Esscher consistency) | ⬜ needs multiple real calibrated dates — same blocker |
+| **Real calibration against actual NCDEX settlement prices/volumes** | ✅ **done 2026-10-11** — the bot-gate on live automated fetch is unchanged (not worked around), but the user manually downloaded 2 real bhavcopy CSVs (RAINCHNNAI, 2026-10-05/06) through the website and `mq run bhavcopy` (new CLI command) ingested them: 6 real `market_quotes` rows, all **zero volume/OI** (answers VERIFY V11 for real: not yet actively trading). 12 real (series × date × transform) calibrations, all converged, Wang/Esscher agree closely (λ/θ ≈ 0.02-0.06). New `mq.mpr.writer`/`mq.pricing.writer.write_q_measure_valuation` persist λ+bootstrap-CI and the real Q-measure prices; both live on the API and dashboard (Pricing page's P-vs-Q overlay, Risk page's λ chart — the latter had a real bug, fixed: it was plotting Wang and Esscher on one undifferentiated line, invisible until real 2-transform data existed to expose it). Full write-up: `docs/methods/mpr.md` §6 |
+| Research outputs (λ vs. days-to-expiry, λ vs. volume, Wang-vs-Esscher consistency) | 🟨 Wang-vs-Esscher consistency now real and visible (both the methods note table and the live Risk-page chart); λ-vs-days-to-expiry/volume still need more than 2 real trading dates — same root blocker, narrowed from "no data" to "need more days" |
 
 ---
 
@@ -197,7 +197,8 @@ comments) — that's the main remaining honesty caveat.
 | Near-term/remainder split via two `simulate()` calls sharing a seed | ✅ **zero simulator code changes needed** — every RNG draw is a pure function of (seed, path_id, day_index), never of total n_days, so subtracting a short run's terminal deviation from a long run's (same seed/start_date) isolates the remainder exactly. Verified via a law-of-large-numbers check |
 | `remaining_rain_climatology_2station`: `clim_v1`'s 2-station, horizon-capped counterpart | ✅ new function; `clim_v1`'s own single-station function left untouched (ledger-live) |
 | **Real end-to-end run**: real chain model, real LPA, real ONI/DMI, real observed_to_date=815.3mm (2026-10-03) | ✅ **confirms SPEC's own "never assume monotonic shrinking uncertainty" on real data, not just as a caveat**: 90% band width across h=7/14/30/60/89 days = 1171.5/1175.1/1124.6/**1420.4**/1240.4mm — genuinely non-monotonic, with a plausible (not yet verified) late-season ENSO-variance explanation for the h=60 spike. Full write-up: `docs/methods/conditioned.md` |
-| Real λ / Q-measure band | ⬜ blocked on real settlement data (same bhavcopy bot-gate as M6) — mechanically straightforward on top of what's built (`mq.mpr.wang`/`esscher` applied to `result.payoff`), just nothing real to calibrate against yet |
+| **Written to `valuations` for real** (2026-10-11) | ✅ was built and demoed but never persisted — Pricing page showed an explicit "not available" card. `method="conditioned", measure="P"` now real for all 3 RAINCHNNAI series: fair_value=810.3mm, 90% band 340.7-1482.5mm (h=30 days, real as_of 2026-10-09, real calibrated overdispersion_sd=0.374). Live on `/v1/series/{id}/valuations/compare` and the dashboard with zero read-side code changes. Full write-up: `docs/methods/conditioned.md` §5 |
+| Real λ / Q-measure band applied to the conditioned payoff specifically | ⬜ M6's real λ now exists (`docs/methods/mpr.md` §6) but hasn't been re-applied to `result.payoff` yet — mechanically straightforward on top of what's built, just not yet done as its own script |
 
 ---
 
@@ -278,9 +279,9 @@ comments) — that's the main remaining honesty caveat.
 | OpenAPI → TS pipeline: `make web-openapi` (exports `app.openapi()` directly, no server needed) → `openapi-typescript` → `openapi-fetch` typed client | ✅ `make web-codegen`; wired into CI as a drift check (`web-openapi-drift`) |
 | `Lineage` component — hover/focus reveals a value's real envelope `meta` | ✅ used throughout |
 | **1 — Overview `/`** | ✅ real contract cards, season progress, freshness pills — see 2026-10-09 PROGRESS entry for exact numbers |
-| **2 — Pricing** `/series/[id]/pricing` | ✅ real burn/dist comparison bars w/ real 90% intervals; conditioned/mpr render explicit "not available" cards (real reason, not a fake bar); P-vs-Q overlay honest-empty (no real λ yet) |
+| **2 — Pricing** `/series/[id]/pricing` | ✅ **all 3 built P-measure methods now real** (2026-10-11, RAINCHNNAI): burn 905.6mm, dist 902.7mm, **forecast-conditioned 810.3mm** (was an explicit "not available" card until this date — built and demoed since M8 but never persisted, now `method="conditioned"` is a real row like the others, zero read-side code changes needed). **P-vs-Q overlay also real** (RAINCHNNAI only — real Wang/Esscher prices against real settlement data, zero-volume caveat shown inline). Caught and fixed 2 real bugs while wiring this: (a) the "Method comparison" bars matched by key *prefix* (`burn/`), which would have silently picked up a `burn/Q_wang` row instead of `burn/P` once Q-measure rows existed for a method — now matches `measure` exactly; (b) a stale "Market price of risk (Q) — not yet available" card kept rendering alongside the new, real P-vs-Q section below it — `"mpr"` was never a real `method` value in the table (Q-measure lives under `measure`, not `method`), removed from the method-comparison list entirely |
 | **3 — Forecast** `/series/[id]/forecast` | ✅ real fan-chart-shaped line+band from `prediction_ledger`, model switcher, observed-to-date overlay. **Analog-years table now real** (M13 follow-up) — `GET /v1/series/{id}/forecast/analog-years`, a live on-demand re-run of `analog_v1`'s own selection step; UI shows the real table when `analog_v1` is selected, or an honest "unavailable" state when real-time data hasn't caught up to the requested date yet (a genuine, confirmed real-world latency, not a bug) |
-| **4 — Risk** `/series/[id]/risk` | ✅ real delta/gamma/theta tiles (SE/pairing); value-vs-rain curve is a labeled local quadratic approximation from the same real delta/gamma, not a full repricing sweep; λ chart honest-empty |
+| **4 — Risk** `/series/[id]/risk` | ✅ real delta/gamma/theta tiles (SE/pairing); value-vs-rain curve is a labeled local quadratic approximation from the same real delta/gamma, not a full repricing sweep; **λ chart now real** (2026-10-11, RAINCHNNAI only) — Wang λ primary (CI band) + Esscher θ secondary (dashed), fixing a real bug where both transforms were plotted as one undifferentiated line |
 | **5 — Hedge Lab** `/hedge` | ✅ real `POST /v1/hedge` from a client-side form, min-variance + CVaR95 shown side by side, surfaces the real degenerate-CVaR-cap finding inline. **Found and fixed a real CORS bug** while E2E-testing this (see below) |
 | **6 — Basis Map** `/basis` | ✅ a real MapLibre GL map (not a simplified scatter) over MapLibre's own free public demo tile style (no API key/account; a real M14 deploy would swap in a provider with an SLA) — real per-cell stats as a GeoJSON circle layer (sequential color ramp via a MapLibre `interpolate` expression, metric toggle, click-to-inspect panel). **Real bug caught by Lighthouse, fixed**: maplibre-gl's worker script failed to load under Next.js/Turbopack's bundler ("Worker failed to load", a 404 served as `text/html`) and silently fell back to blocking the main thread for tile parsing — tanked performance to 47/100. Fixed by serving the worker bundle as a static file (`public/maplibre-gl-worker.mjs`) and calling `maplibregl.setWorkerUrl()` explicitly (47→70). The remaining cost (WebGL init genuinely blocks ~2s of main-thread time) is deferred past the critical render path via `requestIdleCallback` behind a skeleton loader (SPEC's own UX rule) — 70→93, clearing the gate. Per-cell scatter-vs-index not built — `/basis` returns only aggregates, no raw paired series |
 | **7 — Track Record** `/track-record` | ✅ real ledger table (4 rows now), hash-chain-verified badge, live re-run of M7's real 5-rung backtest w/ PIT histograms — confirmed to reproduce `docs/methods/forecasting.md`'s exact CRPS numbers. No public ledger-mirror link (never built, M1's own deferred item) |
@@ -422,10 +423,15 @@ explicit terms; treat as not cleared for redistribution.
    access outright. Options: a different network, BoM's
    `webreg@bom.gov.au` registered-user service, or deprioritize (lowest
    priority of the three climate drivers for NE monsoon per SPEC §3.1).
-2. **NCDEX bhavcopy live fetch blocked** — bot-detection/fingerprint
-   challenge on their API. Options: manually download a bhavcopy CSV and
-   hand it to `write_market_quotes()`, or revisit with real browser
-   automation (claude-in-chrome) when available.
+2. **NCDEX bhavcopy live (automated) fetch stays blocked** — the
+   bot-detection/fingerprint challenge on their API is unchanged, not
+   worked around. **The manual-download path is proven and in active
+   use** (2026-10-11): `mq run bhavcopy <csv>` ingests a bhavcopy
+   downloaded through the website; 2 real days' worth already ingested
+   for RAINCHNNAI. More real trading days (manually downloaded the
+   same way), and RAINMUMBAI's own first bhavcopy, would both directly
+   improve M6's calibration (more dates -> a real Bayesian pool) —
+   nothing architectural left in the way, just more files.
 3. **V12 data licensing** — genuinely unresolved in any public NCDEX
    document; may just stay open permanently (consistent with SPEC's
    research-only positioning).

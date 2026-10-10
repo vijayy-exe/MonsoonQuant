@@ -21,7 +21,7 @@ def _row(**overrides: object) -> dict[str, object]:
         "TckrSymb": "RAINCHNNAI",
         "SctySrs": "",
         "XpryDt": "2026-12-31",
-        "FinInstrmActlXpryDt": "2026-12-31",
+        "FininstrmActlXpryDt": "2026-12-31",
         "StrkPric": 0.0,
         "OptnTp": "XX",
         "FinInstrmNm": "RAINCHNNAIDEC2026",

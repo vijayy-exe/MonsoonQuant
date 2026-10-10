@@ -134,11 +134,88 @@ overstating precision. (c)'s 3 "dates" are themselves illustrative
 pooling mechanism works and narrows the band relative to a single
 estimate, as more (even synthetic) observations should.
 
-## 6. What's not done yet
+## 6. Real calibration (2026-10-11) — the bhavcopy blocker closed, for real
 
-- Real calibration against actual NCDEX settlement prices and volumes —
-  blocked on the bhavcopy bot-gate (same root cause as M2), not a code
-  gap.
-- Research outputs SPEC asks for (λ vs. days-to-expiry, λ vs. volume,
-  Wang-vs-Esscher consistency) need multiple real calibrated dates to
-  plot against — same blocker.
+The bot-gate on ncdex.com's `/api/bhavcopy` backend is still real and
+still not worked around (§0's own stance, unchanged). What changed:
+the user manually downloaded two real UDiFF bhavcopy CSVs through the
+website — the only ever-intended path (`mq run bhavcopy <csv>`, the
+CLI wrapper added for exactly this handoff) — covering RAINCHNNAI's 3
+listed series on 2026-10-05 and 2026-10-06. **First real,
+non-illustrative calibration this project has ever run.**
+
+| series | trade date | days to expiry | real settle (mm) | volume | OI |
+|---|---|---|---|---|---|
+| RAINCHNNAI-OCT26 | 2026-10-05 | 26 | 915.0 | 0 | 0 |
+| RAINCHNNAI-OCT26 | 2026-10-06 | 25 | 912.0 | 0 | 0 |
+| RAINCHNNAI-NOV26 | 2026-10-05 | 57 | 920.0 | 0 | 0 |
+| RAINCHNNAI-NOV26 | 2026-10-06 | 56 | 916.0 | 0 | 0 |
+| RAINCHNNAI-DEC26 | 2026-10-05 | 88 | 924.0 | 0 | 0 |
+| RAINCHNNAI-DEC26 | 2026-10-06 | 87 | 920.0 | 0 | 0 |
+
+**Every single real settlement observed so far has zero trading
+volume and zero open interest** — NCDEX publishes a daily settlement
+price for these contracts regardless, but nobody has actually traded
+either RAINCHNNAI series yet. This directly answers VERIFY V11 ("are
+these products actively trading") for real, for the first time: as of
+this writing, no. Per SPEC §7.5's own instruction ("exclude zero-volume
+days from headline λ... report them separately"), **every number below
+is a zero-volume calibration, not a headline market price of risk.**
+
+Calibrated against the real M4 burn sample (n=31, mean=905.6mm),
+all 12 (series × date × transform) combinations converged cleanly —
+no corner solutions, nowhere near the [-3, 3] bound:
+
+| series | date | Wang λ [90% boot CI] | Esscher θ [90% boot CI] |
+|---|---|---|---|
+| OCT26 | 10-05 | 0.0284 [-0.323, 0.493] | 0.0246 [-0.321, 0.370] |
+| OCT26 | 10-06 | 0.0193 [-0.332, 0.482] | 0.0168 [-0.330, 0.360] |
+| NOV26 | 10-05 | 0.0434 [-0.306, 0.511] | 0.0374 [-0.306, 0.378] |
+| NOV26 | 10-06 | 0.0314 [-0.320, 0.497] | 0.0272 [-0.318, 0.372] |
+| DEC26 | 10-05 | 0.0555 [-0.293, 0.525] | 0.0476 [-0.290, 0.389] |
+| DEC26 | 10-06 | 0.0434 [-0.306, 0.511] | 0.0374 [-0.306, 0.378] |
+
+Wang and Esscher agree closely at every point (the Wang-vs-Esscher
+consistency check SPEC §7.5 asks for) — both small, positive (a mild
+risk loading above the physical mean, consistent with the real settle
+prices sitting slightly above the 905.6mm P-mean). The bootstrap bands
+are wide, same honest finding as §5's illustrative run: n=31 historical
+seasons is thin, and two real dates is nowhere near enough for a
+meaningful Bayesian pool across dates yet (that still needs more real
+trading days — the same blocker as the research outputs below, now
+narrowed to "need more days," not "need any real data at all").
+
+The real risk-neutral (Q) prices themselves (`mq.pricing.writer.
+write_q_measure_valuation`, `measure="Q_wang"`/`"Q_esscher"`) are also
+written to `valuations` and live on `/v1/series/{id}/valuations/compare`
+and the Pricing/Risk dashboard pages — by construction, `Q_wang`'s
+fair_value reproduces the calibration settle exactly (912.0mm for
+OCT26 10-06, etc.), which is the correct sanity check, not a
+coincidence.
+
+**Two real bugs this surfaced, fixed, not just worked around**:
+1. The real bhavcopy CSV's own column header is `FininstrmActlXpryDt`
+   (lowercase i in "nstrm"), not `FinInstrmActlXpryDt` as the
+   registered schema spec states — a real NCDEX-vs-documentation
+   discrepancy. Harmless to parsing (the column isn't used downstream),
+   but `BHAVCOPY_SCHEMA` now matches the real file, not the written
+   spec, with a comment explaining why.
+2. The dashboard's Risk-page λ chart plotted every `mpr_estimates`
+   point (Wang and Esscher both) on one undifferentiated line —
+   invisible with only illustrative data, but with two real transforms
+   sharing the same real as_of_date, it silently zigzagged between
+   lambda and theta at every point. Fixed: Wang is the primary series
+   (with its own CI band), Esscher overlays as a labeled dashed
+   secondary — the same pattern already used for the Forecast page's
+   observed-to-date line, and a real, visible rendering of SPEC's own
+   named Wang-vs-Esscher consistency check instead of a hidden one.
+
+## 7. What's still not done
+
+- A real Bayesian pool across dates (needs more than 2 real trading
+  days — the machinery is built and tested, §4).
+- λ vs. days-to-expiry / λ vs. volume research plots — same "need more
+  real dates" blocker, now narrowed from "need any real data."
+- RAINMUMBAI has no real settlement data yet (no bhavcopy row for it
+  has been downloaded) — its M4 burn/distribution pricing is real
+  (see `docs/PROGRESS.md`'s 2026-10-11 entry), its Q-measure isn't.

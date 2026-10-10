@@ -47,6 +47,43 @@ def write_burn_valuation(
         return merged
 
 
+def write_valuation(
+    *,
+    series_id: str,
+    as_of_date: date,
+    method: str,
+    measure: str,
+    fair_value: float,
+    lo90: float,
+    hi90: float,
+    n_paths: int,
+    run_id: UUID | None = None,
+) -> Valuation:
+    """Writes one `valuations` row directly from an already-computed
+    (fair_value, lo90, hi90) triple — for any (method, measure) that
+    doesn't have its own dedicated writer above (e.g. `method="burn",
+    measure="Q_wang"/"Q_esscher"` for a Wang/Esscher-reweighted price,
+    or `method="conditioned", measure="P"` for M8's forecast-
+    conditioned payoff distribution)."""
+    with session_scope() as session:
+        row = Valuation(
+            series_id=series_id,
+            as_of_date=as_of_date,
+            method=method,
+            measure=measure,
+            fair_value=Decimal(str(fair_value)),
+            lo90=Decimal(str(lo90)),
+            hi90=Decimal(str(hi90)),
+            n_paths=n_paths,
+            run_id=run_id,
+        )
+        merged = session.merge(row)
+        session.flush()
+        session.refresh(merged)
+        session.expunge(merged)
+        return merged
+
+
 def write_distribution_valuation(
     fd: FittedDistribution,
     *,

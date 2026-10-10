@@ -6,7 +6,11 @@ from mq.db.models import Valuation
 from mq.db.session import get_engine, session_scope
 from mq.pricing.burn import BurnStats
 from mq.pricing.distribution import FittedDistribution
-from mq.pricing.writer import write_burn_valuation, write_distribution_valuation
+from mq.pricing.writer import (
+    write_burn_valuation,
+    write_distribution_valuation,
+    write_valuation,
+)
 
 TEST_SERIES = "TESTCDR-DEC26"
 
@@ -62,5 +66,35 @@ def test_write_distribution_valuation_writes_sample_derived_fair_value() -> None
             assert abs(float(row.lo90) - 50.0) < 1.0
             assert abs(float(row.hi90) - 950.0) < 1.0
             assert row.n_paths == 31
+    finally:
+        _cleanup()
+
+
+def test_write_valuation_writes_a_distinct_measure_row() -> None:
+    _cleanup()
+    try:
+        write_valuation(
+            series_id=TEST_SERIES,
+            as_of_date=date(2026, 10, 6),
+            method="burn",
+            measure="Q_wang",
+            fair_value=920.0,
+            lo90=448.2,
+            hi90=1882.8,
+            n_paths=5000,
+        )
+
+        with session_scope() as session:
+            q_row = session.get(Valuation, (TEST_SERIES, date(2026, 10, 6), "burn", "Q_wang"))
+            assert q_row is not None
+            assert float(q_row.fair_value) == 920.0
+            assert float(q_row.lo90) == 448.2
+            assert float(q_row.hi90) == 1882.8
+            assert q_row.n_paths == 5000
+            # A P-measure row with the same (series, as_of, method) is a
+            # DIFFERENT primary key (measure differs) -- writing Q never
+            # touches it.
+            p_row = session.get(Valuation, (TEST_SERIES, date(2026, 10, 6), "burn", "P"))
+            assert p_row is None
     finally:
         _cleanup()

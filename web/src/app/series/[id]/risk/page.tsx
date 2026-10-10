@@ -55,9 +55,28 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
         })
       : [];
 
-  const lambdaPoints: LineBandPoint[] = (mpr?.data.points ?? [])
-    .filter((p) => p.lambda_ != null)
-    .map((p) => ({ x: new Date(p.as_of_date).getTime(), y: p.lambda_, lo: p.ci_lo, hi: p.ci_hi, label: p.as_of_date }));
+  // Wang (lambda) and Esscher (theta) are two different calibrated
+  // parameters, not two observations of the same series -- plotting
+  // them on one undifferentiated line would silently zigzag between
+  // them at every shared as_of_date. Wang is SPEC's primary (with its
+  // own CI band); Esscher overlays as a dashed secondary, the same
+  // pattern the Forecast page already uses for "observed to date" --
+  // giving SPEC's own named "Wang vs Esscher consistency" research
+  // output a real, visible comparison instead of losing one transform.
+  const toLambdaPoint = (p: NonNullable<typeof mpr>["data"]["points"][number]): LineBandPoint => ({
+    x: new Date(p.as_of_date).getTime(),
+    y: p.lambda_,
+    lo: p.ci_lo,
+    hi: p.ci_hi,
+    label: p.as_of_date,
+  });
+  const wangPoints: LineBandPoint[] = (mpr?.data.points ?? [])
+    .filter((p) => p.transform === "wang" && p.lambda_ != null)
+    .map(toLambdaPoint);
+  const esscherPoints: LineBandPoint[] = (mpr?.data.points ?? [])
+    .filter((p) => p.transform === "esscher" && p.lambda_ != null)
+    .map(toLambdaPoint);
+  const lambdaPoints = wangPoints;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -111,14 +130,28 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
       <section className="mt-10">
         <h2 className="text-sm font-semibold text-foreground">λ — market price of risk</h2>
         {lambdaPoints.length > 0 ? (
-          <div className="mt-4">
-            <LineBand points={lambdaPoints} unit="" />
-          </div>
+          <>
+            <p className="mt-1 text-xs text-muted">
+              Solid line + band: Wang λ (90% bootstrap CI). Dashed: Esscher θ,
+              the same calibration on the same real settlement prices — SPEC&apos;s
+              own cross-check between the two transforms. Every point so far
+              is calibrated against a <strong>zero-volume</strong> settlement
+              (these contracts aren&apos;t actively trading yet): an early
+              estimate, not a headline market price of risk.
+            </p>
+            <div className="mt-4">
+              <LineBand
+                points={lambdaPoints}
+                unit=""
+                secondary={esscherPoints.length > 0 ? { label: "Esscher θ", points: esscherPoints } : undefined}
+              />
+            </div>
+          </>
         ) : (
           <div className="mt-4">
             <EmptyState
               title="No real λ calibration yet"
-              detail="M6's Wang/Esscher machinery is built and tested against real P-measure data (docs/methods/mpr.md), but blocked on real NCDEX settlement prices to calibrate against (bhavcopy fetch is bot-gated)."
+              detail="M6's Wang/Esscher machinery is built and tested against real P-measure data (docs/methods/mpr.md), but this series has no real NCDEX settlement price to calibrate against yet (bhavcopy fetch is bot-gated for live download; a manually-downloaded bhavcopy unblocks it per-series, see docs/DECISIONS.md)."
             />
           </div>
         )}

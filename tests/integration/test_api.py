@@ -128,19 +128,45 @@ def test_get_index_path_unknown_series_is_404() -> None:
     assert resp.json()["type"] == "mq/unknown-series"
 
 
-def test_get_quotes_returns_empty_not_error_bhavcopy_bot_gated() -> None:
-    """market_quotes is genuinely empty right now -- NCDEX bhavcopy live
-    fetch stays bot-gated (M2, documented policy) -- so this must return
-    200 with an empty list, not a 404/500."""
+def test_get_quotes_returns_real_rows_for_a_series_with_real_bhavcopy_data() -> None:
+    """RAINCHNNAI-OCT26 has 2 real bhavcopy rows, manually downloaded and
+    ingested via `mq run bhavcopy` (2026-10-11, docs/methods/mpr.md §6)
+    -- NCDEX's live automated fetch is still bot-gated (M2), the manual
+    path isn't."""
     resp = client.get("/v1/series/RAINCHNNAI-OCT26/quotes")
+    assert resp.status_code == 200
+    quotes = resp.json()["data"]["quotes"]
+    assert len(quotes) == 2
+    assert all(q["volume"] == 0 for q in quotes)  # not actively trading yet (VERIFY V11)
+    settles = {q["trade_date"]: q["settle"] for q in quotes}
+    assert settles["2026-10-05"] == pytest.approx(915.0)
+    assert settles["2026-10-06"] == pytest.approx(912.0)
+
+
+def test_get_quotes_returns_empty_not_error_for_a_series_with_no_real_bhavcopy_data() -> None:
+    """RAINMUMBAI has no real bhavcopy data yet -- the honest-empty case
+    NCDEX's bhavcopy bot-gate (M2) was designed around, still real for
+    any series nobody has downloaded a bhavcopy for."""
+    resp = client.get("/v1/series/RAINMUMBAI-JUN26/quotes")
     assert resp.status_code == 200
     assert resp.json()["data"]["quotes"] == []
 
 
-def test_get_mpr_returns_empty_not_error_no_real_settlement_data() -> None:
-    """mpr_estimates is genuinely empty -- M6's demo ran on illustrative
-    settle data only, nothing written against real market data yet."""
+def test_get_mpr_returns_real_points_for_a_series_with_real_calibration() -> None:
+    """RAINCHNNAI-OCT26 has 4 real mpr_estimates rows (wang+esscher x 2
+    real settlement dates, docs/methods/mpr.md §6) -- the first real,
+    non-illustrative calibration this project has run."""
     resp = client.get("/v1/series/RAINCHNNAI-OCT26/mpr")
+    assert resp.status_code == 200
+    points = resp.json()["data"]["points"]
+    assert len(points) == 4
+    assert {p["transform"] for p in points} == {"wang", "esscher"}
+    assert all(p["volume"] == 0 for p in points)  # zero-volume calibration, not a headline number
+
+
+def test_get_mpr_returns_empty_not_error_for_a_series_with_no_real_calibration() -> None:
+    """RAINMUMBAI has no real settlement data to calibrate against yet."""
+    resp = client.get("/v1/series/RAINMUMBAI-JUN26/mpr")
     assert resp.status_code == 200
     assert resp.json()["data"]["points"] == []
 

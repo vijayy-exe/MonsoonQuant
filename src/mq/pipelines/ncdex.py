@@ -42,6 +42,11 @@ KNOWN_CONTRACT_CODES = {"RAINCHNNAI", "RAINMUMBAI"}
 RAW_DIR = Path("data/raw/ncdex/bhavcopy")
 
 # NCDEX UDiFF Final Bhav Copy columns (source: ncdex_udiff_bhavcopy_format_2024, p.8-9).
+# "FininstrmActlXpryDt" (lowercase i in "nstrm") is NCDEX's own real
+# column name, confirmed against a real downloaded bhavcopy CSV
+# (2026-10-11) -- differs from the documented spec's "FinInstrmActlXpryDt"
+# casing, not used by to_market_quotes() so harmless either way, kept
+# matching the real file rather than the written spec.
 BHAVCOPY_SCHEMA: dict[str, pl.DataType] = {
     "TradDt": pl.String(),
     "BizDt": pl.String(),
@@ -53,7 +58,7 @@ BHAVCOPY_SCHEMA: dict[str, pl.DataType] = {
     "TckrSymb": pl.String(),
     "SctySrs": pl.String(),
     "XpryDt": pl.String(),
-    "FinInstrmActlXpryDt": pl.String(),
+    "FininstrmActlXpryDt": pl.String(),
     "StrkPric": pl.Float64(),
     "OptnTp": pl.String(),
     "FinInstrmNm": pl.String(),
