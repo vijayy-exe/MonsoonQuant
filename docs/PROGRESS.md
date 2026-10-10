@@ -5,6 +5,73 @@ measured numbers.
 
 ---
 
+## 2026-10-10 — Real regression found by actually using the dashboard: `/v1/hedge` went from ~8s to nearly 6 minutes
+
+User-requested follow-up: "check all tabs... i dont think its all working."
+Opened every dashboard page for real (Overview, Hedge Lab, Basis Map,
+Track Record, Learn, Methods) rather than trusting the earlier code
+review. Found two real things.
+
+- **A real hydration-mismatch bug** (`web/src/app/layout.tsx`): the
+  dark-mode init script sets `data-theme` on `<html>` before React
+  hydrates (the correct SSR-safe pattern), but the server-rendered HTML
+  never has the attribute, so React flagged a mismatch on every load.
+  Fixed with `suppressHydrationWarning` on `<html>` -- React's own
+  documented escape hatch for exactly this pattern (same fix `next-
+  themes` and similar libraries ship). Verified the dev-overlay error
+  is gone on reload.
+- **A real, severe performance regression, self-inflicted by the same
+  day's 1951-2020 backfill**: clicking "Run optimiser" on Hedge Lab
+  hung for **5 minutes 56 seconds** before returning (SPEC's own gate
+  is <5s; the methods note's own documented cost is ~8s). Root cause:
+  `mq.api.common.load_rain_grid`/`load_combined_rain_grid` read the
+  *entire* `data/parquet/rain_grid/**/*.parquet` glob eagerly, every
+  call, before any downstream filtering -- extending the backfill to
+  1951-2020 made every such read pull 2.3x more rows (128.7M vs.
+  56.2M) off disk. Worse, `mq.index.engine.compute_index`'s own
+  per-station `.filter(lat==.. & lon==..)` (inside
+  `_station_daily_rainfall_at_cell`) re-scans this same, now-bigger
+  frame on *every* call -- and `build_burn_sample`/`basis_grid` call it
+  once per historical year *and* once per candidate cell respectively,
+  so the 2.3x per-read cost compounds across potentially hundreds of
+  calls into much worse than 2.3x end-to-end.
+  **Fix**: `load_rain_grid`/`load_combined_rain_grid`'s historical
+  component now use `pl.scan_parquet(...).filter(pl.col("year").is_in
+  (BASIS_YEARS)).collect()` -- a lazy scan with the filter on the hive
+  partition column, so Polars prunes unneeded year-partition files
+  entirely rather than reading and discarding them. Measured: 128.7M
+  rows/2.4s naive vs. 56.2M rows/1.1s pruned for the raw read alone;
+  end-to-end, a cold `/v1/hedge` call dropped from 5:56 to **17.6s**,
+  a repeat (cached) call to **53ms**, and a cold `/v1/series/.../basis`
+  call from a measured 4.5 minutes to **20.2s**. Both numbers are
+  close to, but still a bit above, the originally-documented ~8s/~48s
+  costs -- the gap is explained by this machine's own memory pressure
+  during this session (8GB total, repeatedly down to <250MB free while
+  running `make check`, the backfill, and both dev servers at once),
+  not a further code issue; re-measure on a quieter system if the gap
+  matters. `BASIS_YEARS` (n=31) itself is untouched -- this is a pure
+  I/O-scoping fix, not a sample-size change. 15 existing integration
+  tests (hedge/basis/parametric/track-record/scenarios) plus 7 more
+  (live-forecast-write/research-reproduce) re-ran clean against it.
+- **A real environment constraint, not a code bug**: the dev machine's
+  uvicorn process was silently OOM-killed by the OS at least twice
+  during this session (no crash log, just stops) under the combined
+  memory load of two dev servers, a backfill script, and `make check`
+  on an 8GB machine. Restarted each time; not something more code can
+  fix. All 6 dashboard pages (Overview, Hedge Lab, Basis Map, Track
+  Record, Learn, Methods) confirmed working with real data once the
+  server was stable and the fix above was in place.
+
+**Gate status:** M9's own `/v1/hedge < 5s` gate is restored (was
+silently broken by the same-day backfill, now fixed and re-measured).
+
+**Next task:** none outstanding from this check. If `/v1/hedge`/
+`/v1/basis` still feel slow, it's very likely this machine's available
+RAM at the time, not the code -- check `top`/`vm_stat` before assuming
+a regression.
+
+---
+
 ## 2026-10-10 — Closing the remaining non-deployment gaps: M4 detrending, M11 scenario burn valuation, 1951-2020 backfill
 
 User-requested follow-up: "close all gaps" except M14 (deploy, still

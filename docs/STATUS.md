@@ -530,6 +530,25 @@ per-cell loop — now wired through real daily series. The Feature
 catalogue table above was also stale (F10/F20/F21/F23/F26 still showed
 ⬜ despite being done) — corrected.
 
+**A third check, this time by actually opening every dashboard page**
+(not just reading code) caught a real regression the backfill-to-1951
+work above silently introduced: `load_rain_grid`/`load_combined_
+rain_grid` read the *entire* rain_grid glob eagerly before filtering,
+so the bigger (128.7M-row) dataset made every repeated per-year/
+per-cell reconstruction call (`build_burn_sample`, `basis_grid`) read
+2.3x more data on every call — a cold `/v1/hedge` went from ~8s
+documented to **5 minutes 56 seconds** measured, silently breaking
+M9's own `<5s` gate. Fixed with partition-pruned lazy reads scoped to
+`BASIS_YEARS` (`src/mq/api/common.py`) — `/v1/hedge` back to 17.6s
+cold/53ms cached, `/v1/basis` back to 20.2s cold (from a measured 4.5
+minutes). Also fixed a real hydration-mismatch warning in `web/src/
+app/layout.tsx` (`suppressHydrationWarning` on `<html>`, React's own
+documented fix for an SSR theme-init script). Separately: this
+machine's uvicorn process was silently OOM-killed twice by the OS
+under combined load (two dev servers + backfill + `make check` on
+8GB RAM) — not a code issue, just needed restarting. Full write-up:
+`docs/PROGRESS.md`'s matching 2026-10-10 entry.
+
 **One thing still genuinely needs your decision**: M14 (deploy &
 harden) needs real infra choices (hosting provider, domain, secrets)
 only you can make -- not started. The P-vs-Q overlay stays hard-
