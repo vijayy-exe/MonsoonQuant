@@ -5,6 +5,83 @@ measured numbers.
 
 ---
 
+## 2026-10-11 — RAINMUMBAI had never been priced at all; a user-supplied gap analysis flagged it (and 5 things that weren't bugs)
+
+User shared an independent "gap analysis" document's findings and asked
+for help fixing them. Checked each of its 6 points against the real
+code and real data before acting on any of them -- 5 were verified to
+be correct, already-documented behavior misread as bugs; 1 was real.
+
+**Verified NOT bugs (with evidence, not just citation):**
+1. OCT26/NOV26/DEC26 showing identical fair value/observed-to-date:
+   confirmed from the live `contracts` table that all three genuinely
+   share `period_start=2026-09-01`/`period_end=2026-12-31` -- they are
+   different *expiry* months on one real underlying seasonal index
+   (the official NCDEX product note's own cumulative-deviation
+   methodology, verified during M1's V1-V11 resolution), not a bug in
+   how the app stores data.
+2. 815.3mm (Oct 3) vs. 787.2mm (Oct 9) looking like cumulative rainfall
+   going backwards: recomputed both live via the real
+   `load_combined_rain_grid` + `compute_index` path -- both numbers
+   reproduce exactly. The index is cumulative *deviation from the LPA*,
+   not cumulative rainfall, and Oct 4-9 had below-average daily
+   rainfall, so the deviation legitimately fell ~28mm. (A first attempt
+   at this same recomputation, done in an ad hoc throwaway script that
+   concatenated historical+real-time rain_grid without the real
+   function's dedup step, gave wrong numbers (666/638mm) -- that was a
+   bug in the throwaway script, not the app; re-done with the actual
+   `mq.api.common.load_combined_rain_grid` it matches exactly.)
+3. Hedge Lab's 0-lot/0%-effectiveness min-variance result and the
+   CVaR hedge hitting exactly its 5-lot cap: checked the formula
+   against SPEC §7.9 verbatim (`h* = -Cov(L,X)/Var(X)`, effectiveness
+   `1 - Var(L+hX)/Var(L)`) -- `src/mq/risk/hedge.py` implements it
+   exactly. Both outcomes are the same real, already-documented M9
+   findings from earlier this project (a small exposure's h* rounds to
+   0 lots at this contract's granularity; the real RAINCHNNAI index's
+   sign never flips across history, so CVaR's unconstrained optimum
+   doesn't exist and the position limit is load-bearing) -- not new
+   bugs surfacing again, the same finding being re-encountered.
+4. All 4 newer forecast models underperforming climatology, and (5)
+   NCDEX data being unavailable for settles/λ/risk-neutral pricing/
+   margins/λ charts: both already extensively documented (M7's own
+   headline honest finding; the bhavcopy bot-gate, M2/M6/M8/M11). Not
+   re-litigated here.
+
+**The one real gap: RAINMUMBAI had zero rows in `valuations` and
+`index_values` -- never priced at all**, separate from its 2026 season
+being closed. Confirmed computable with the real data on disk (burn
+sample built cleanly, n=31) and fixed:
+- Real burn stats: n=31, mean=2273.46mm, median=2188.84mm, sd=532.42mm,
+  P5=1468.66mm, P95=3166.86mm.
+- Real distribution selection (same leave-one-out CRPS harness as
+  RAINCHNNAI's M4 run): `gamma` wins, CRPS=313.39 (vs. weibull 314.80,
+  kde_silverman 314.92, lognormal 315.34, kde_cv 317.32, bootstrap
+  317.37, enso_climatology 338.28 -- last place, same pattern M7 found
+  for RAINCHNNAI's forecasting ladder). fair_value=2284.04mm.
+  Written to `valuations` (method=burn and method=dist, measure=P) for
+  all 4 RAINMUMBAI series.
+- Real final 2026 season index value: RAINMUMBAI's real-time rainfall
+  had only ever been backfilled Sep1-Oct9 (RAINCHNNAI's own season
+  start) -- RAINMUMBAI's real season (Jun1-Sep30) needed Jun-Aug too.
+  Backfilled (3 month-long chunks; June hit one transient IMD
+  connection timeout, succeeded on retry). Recomputed the real CDR
+  path end-to-end: 122/122 days covered, zero gaps,
+  **season_lpa_anchor=2260.89mm, observed_to_date (real, final 2026
+  season)=2167.61mm**. Written to `index_values` for all 4 series (488
+  rows). Confirmed live on the Overview page -- all 4 RAINMUMBAI cards
+  now show real fair value (2284.0mm) and real observed-to-date
+  (2167.6mm, as of 2026-09-30) instead of "pending".
+
+**Gate status:** no milestone gate changes -- this completes real M4
+work (burn+distribution) for the second real contract, which had
+simply never been run.
+
+**Next task:** none outstanding from this round. RAINMUMBAI is now
+priced the same way RAINCHNNAI is, modulo the same real, external
+blockers both contracts share (bhavcopy, MJO).
+
+---
+
 ## 2026-10-10 — Real regression found by actually using the dashboard: `/v1/hedge` went from ~8s to nearly 6 minutes
 
 User-requested follow-up: "check all tabs... i dont think its all working."

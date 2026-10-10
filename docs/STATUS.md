@@ -62,7 +62,7 @@ for the full list.
 | Ledger hash chain + writer + verify + export | ✅ tamper detection proven |
 | **Real ledger rows**: RAINCHNNAI, `clim_v1` v0.1.0 (proxy Oct-Dec window) and v0.2.0 (real Sep-Dec window, post-VERIFY) | ✅ both verified, chain intact |
 | Daily export → public GitHub repo + Actions cron | ⬜ deferred — no GitHub remote (local git only, per your instruction) |
-| RAINMUMBAI ledger row | ⬜ its real period (Jun 1-Sep 30) is closed for 2026 as of today (Oct 4) — nothing to forecast until Jun 2027 |
+| RAINMUMBAI ledger row | ⬜ its real period (Jun 1-Sep 30) is closed for 2026 as of today — nothing to forecast until Jun 2027 (forecasting specifically; its real burn/distribution/index-value M4 pricing is done — see 2026-10-11 PROGRESS entry: n=31 burn sample, gamma-selected distribution, real final 2026 season index=2167.61mm, all previously never computed — found genuinely empty, not previously run) |
 
 ### VERIFY resolution (see docs/VERIFY.md for full citations)
 Found the official NCDEX documents myself (public downloads linked from
