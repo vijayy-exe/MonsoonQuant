@@ -17,6 +17,7 @@ import numpy as np
 import polars as pl
 import scoringrules as sr
 
+from mq.pricing.burn import BurnSample, DetrendMethod, detrend_sample
 from mq.pricing.distribution import (
     FittedDistribution,
     fit_bootstrap,
@@ -110,6 +111,39 @@ def select_best_distribution(cv_results: dict[str, CVResult]) -> str:
     candidate including the two (bootstrap, enso_climatology) with no
     defined density."""
     return min(cv_results, key=lambda k: cv_results[k].mean_crps)
+
+
+def select_best_detrend(
+    sample: BurnSample,
+    *,
+    oni: pl.DataFrame | None = None,
+    rng: np.random.Generator,
+) -> dict[DetrendMethod, dict[str, CVResult]]:
+    """Runs `rolling_origin_cv`'s exact leave-one-out distribution
+    selection on each of SPEC §7.3's 3 detrend options
+    (`mq.pricing.burn.detrend_sample`), so "which detrend" and "which
+    distribution" are chosen by the same out-of-sample-CRPS criterion in
+    one pass, as SPEC's own text calls for ("choose via out-of-sample
+    pricing error")."""
+    results: dict[DetrendMethod, dict[str, CVResult]] = {}
+    for method in ("none", "linear", "loess"):
+        detrended = detrend_sample(sample, method)
+        results[method] = rolling_origin_cv(
+            np.array(detrended.payoffs), detrended.years, oni=oni, rng=rng
+        )
+    return results
+
+
+def select_best_detrend_and_distribution(
+    results: dict[DetrendMethod, dict[str, CVResult]],
+) -> tuple[DetrendMethod, str]:
+    """The single (detrend method, distribution kind) pair with the
+    lowest mean CRPS across every combination `select_best_detrend`
+    scored."""
+    best_method = min(
+        results, key=lambda m: results[m][select_best_distribution(results[m])].mean_crps
+    )
+    return best_method, select_best_distribution(results[best_method])
 
 
 def log_cv_results_to_mlflow(

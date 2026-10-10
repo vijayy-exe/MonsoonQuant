@@ -13,12 +13,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
+import numpy as np
 import polars as pl
+from scipy import stats
 
 from mq.index.engine import compute_index
 from mq.index.lpa import DailyLPA
 from mq.specs.contract import ContractSpec, MonthDay
+
+DetrendMethod = Literal["none", "linear", "loess"]
 
 
 @dataclass(frozen=True)
@@ -118,4 +123,76 @@ def compute_burn_stats(sample: BurnSample) -> BurnStats:
         skew=float(s.skew()) if n >= 3 else float("nan"),  # type: ignore[arg-type]
         es_lower_5pct=float(s.head(tail_n).mean()),  # type: ignore[arg-type]
         es_upper_5pct=float(s.tail(tail_n).mean()),  # type: ignore[arg-type]
+    )
+
+
+@dataclass(frozen=True)
+class DetrendedSample:
+    contract_code: str
+    method: DetrendMethod
+    years: list[int]
+    payoffs: list[float]  # detrended and re-centered -- see detrend_sample's docstring
+
+
+def _linear_trend(years: np.ndarray, payoffs: np.ndarray) -> np.ndarray:
+    fit = stats.linregress(years, payoffs)
+    return np.asarray(fit.intercept + fit.slope * years, dtype=np.float64)
+
+
+def _loess_trend(years: np.ndarray, payoffs: np.ndarray, *, frac: float = 0.5) -> np.ndarray:
+    """Locally weighted linear regression (Cleveland 1979) -- hand-rolled
+    rather than pulling in statsmodels for one function: for each point,
+    fit a line to its `frac`-fraction nearest neighbors (by year),
+    weighted by the tricube kernel, and take that line's value at the
+    point itself."""
+    n = len(years)
+    k = max(2, int(np.ceil(frac * n)))
+    fitted = np.empty(n)
+    for i in range(n):
+        distances = np.abs(years - years[i])
+        neighbor_idx = np.argsort(distances, kind="stable")[:k]
+        d_max = distances[neighbor_idx].max()
+        weights = np.ones(k) if d_max == 0 else (1 - (distances[neighbor_idx] / d_max) ** 3) ** 3
+        design = np.column_stack([np.ones(k), years[neighbor_idx]])
+        weighted_design = design * weights[:, None]
+        beta = np.linalg.solve(
+            design.T @ weighted_design, design.T @ (weights * payoffs[neighbor_idx])
+        )
+        fitted[i] = beta[0] + beta[1] * years[i]
+    return fitted
+
+
+def detrend_sample(
+    sample: BurnSample, method: DetrendMethod, *, loess_frac: float = 0.5
+) -> DetrendedSample:
+    """Removes a fitted trend from `sample`'s payoffs and re-centers the
+    residuals to the trend's own fitted value at the most recent year
+    (`sample.years` is always ascending -- see `build_burn_sample`), so
+    the detrended series stays on the original mm scale and represents
+    "this season's payoff distribution at today's trend level," not the
+    sample's historical average level (SPEC §7.3's own stated point of
+    detrending: a 30+-year sample may have drifted). `method="none"` is
+    the identity transform (trend = the sample mean everywhere, so
+    residual + recenter reproduces the input exactly) -- letting a
+    caller always route through this function uniformly, including when
+    comparing "none" against the other two via out-of-sample CRPS
+    (`select_best_detrend` below)."""
+    if len(sample.payoffs) < 2:
+        raise ValueError(
+            f"need at least 2 historical seasons to fit a trend, got {len(sample.payoffs)}"
+        )
+    years = np.array(sample.years, dtype=float)
+    payoffs = np.array(sample.payoffs, dtype=float)
+    if method == "none":
+        trend = np.full_like(payoffs, payoffs.mean())
+    elif method == "linear":
+        trend = _linear_trend(years, payoffs)
+    else:
+        trend = _loess_trend(years, payoffs, frac=loess_frac)
+    recentered = (payoffs - trend) + trend[-1]
+    return DetrendedSample(
+        contract_code=sample.contract_code,
+        method=method,
+        years=sample.years,
+        payoffs=[float(v) for v in recentered],
     )

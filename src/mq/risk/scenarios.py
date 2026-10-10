@@ -40,6 +40,7 @@ import numpy as np
 import polars as pl
 
 from mq.index.lpa import DailyLPA
+from mq.pricing.distribution import fit_enso_conditioned_climatology_for_value
 from mq.pricing.simulator_glm import ChainModel
 from mq.risk.greeks import (
     delta,
@@ -189,11 +190,28 @@ def run_scenario(
     seed: int,
     hedge_lots: int | None = None,
     hedge_multiplier: float | None = None,
+    historical_payoffs: np.ndarray | None = None,
+    historical_years: list[int] | None = None,
+    year_oni: dict[int, float] | None = None,
+    year_terciles: dict[int, int] | None = None,
+    rng: np.random.Generator | None = None,
 ) -> ScenarioResult:
     """`covariates` must be `[oni, dmi]` (the order the real chain model
     uses, M5.1/M5.2) for `oni_override`/`dmi_override` to land correctly
     -- a model fit with different/more covariates needs its own
-    shock-application logic, not supported generically here."""
+    shock-application logic, not supported generically here.
+
+    `historical_payoffs`/`historical_years`/`year_oni`/`year_terciles`/
+    `rng`: optional. When all five are supplied, also reports a
+    `burn_enso_conditioned_*` valuation -- SPEC §7.12's "valuations
+    under all methods" for the one other method (M4's burn/ENSO-
+    conditioned climatology) that can meaningfully respond to an
+    ENSO/IOD shock at all; burn's *un*conditioned statistics and the
+    smooth parametric distribution fits (M4's other candidates) are
+    fixed historical summaries with no covariate to shock in the first
+    place. M8's forecast-conditioned method needs a full forecast
+    object per shock and isn't wired in here -- noted, not silently
+    dropped (see docs/STATUS.md's M11 detail)."""
     effective_covariates = _apply_shock(covariates, shock)
     effective_obs = observed_to_date + shock.observed_to_date_bump_mm
 
@@ -214,6 +232,26 @@ def run_scenario(
         "simulator_p5": float(np.quantile(payoff, 0.05)),
         "simulator_p95": float(np.quantile(payoff, 0.95)),
     }
+
+    if (
+        historical_payoffs is not None
+        and historical_years is not None
+        and year_oni is not None
+        and year_terciles is not None
+        and rng is not None
+        and len(effective_covariates) >= 1
+    ):
+        fitted = fit_enso_conditioned_climatology_for_value(
+            historical_payoffs,
+            historical_years,
+            oni_value=effective_covariates[0],
+            year_oni=year_oni,
+            year_terciles=year_terciles,
+            rng=rng,
+        )
+        valuations["burn_enso_conditioned_mean"] = float(np.mean(fitted.samples))
+        valuations["burn_enso_conditioned_p5"] = float(np.quantile(fitted.samples, 0.05))
+        valuations["burn_enso_conditioned_p95"] = float(np.quantile(fitted.samples, 0.95))
 
     d = delta(model, daily_lpa, **common)
     g = gamma(model, daily_lpa, **common)

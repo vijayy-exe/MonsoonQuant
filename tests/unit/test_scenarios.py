@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from mq.index.lpa import DailyLPA
+from mq.pricing.distribution import oni_terciles
 from mq.pricing.simulator_glm import ChainModel, GLMFit
 from mq.risk.scenarios import (
     cloudburst,
@@ -167,6 +168,63 @@ def test_run_scenario_computes_hedge_pnl_when_position_given() -> None:
     expected_pnl = -5 * 50.0 * result.valuations["simulator_mean"]
     assert result.hedge_pnl == pytest.approx(expected_pnl)
     assert result.hedge_pnl_note != ""
+
+
+def test_run_scenario_adds_burn_enso_conditioned_valuation_when_given_history() -> None:
+    model = _always_dry_model()
+    lpa = _flat_lpa(2.0)
+    years = list(range(2000, 2030))
+    rng = np.random.default_rng(0)
+    # Payoffs are literally equal to each year's own ONI -- makes the
+    # el_nino-group mean trivially and exactly checkable (should land
+    # near the high-ONI years' own payoff values, not the full sample's
+    # overall mean of ~0).
+    year_oni = {y: float(i - 15) for i, y in enumerate(years)}  # -15..14, roughly centered
+    payoffs = np.array([year_oni[y] for y in years])
+    year_terciles = oni_terciles(year_oni)
+
+    result = run_scenario(
+        model,
+        lpa,
+        el_nino(oni=20.0),  # far above every real year -- lands in the top tercile
+        observed_to_date=500.0,
+        start_date=date(2026, 9, 1),
+        period_end=date(2026, 9, 10),
+        start_state=0,
+        covariates=[0.0, 0.0],
+        overdispersion_sd=0.0,
+        n_paths=50,
+        seed=1,
+        historical_payoffs=payoffs,
+        historical_years=years,
+        year_oni=year_oni,
+        year_terciles=year_terciles,
+        rng=rng,
+    )
+
+    assert "burn_enso_conditioned_mean" in result.valuations
+    top_tercile_years = [y for y in years if year_terciles[y] == 2]
+    expected_mean = float(np.mean([year_oni[y] for y in top_tercile_years]))
+    assert result.valuations["burn_enso_conditioned_mean"] == pytest.approx(expected_mean, abs=1.0)
+
+
+def test_run_scenario_omits_burn_enso_conditioned_valuation_without_history() -> None:
+    model = _always_dry_model()
+    lpa = _flat_lpa(2.0)
+    result = run_scenario(
+        model,
+        lpa,
+        neutral_enso(),
+        observed_to_date=500.0,
+        start_date=date(2026, 9, 1),
+        period_end=date(2026, 9, 10),
+        start_state=0,
+        covariates=[0.0, 0.0],
+        overdispersion_sd=0.0,
+        n_paths=50,
+        seed=1,
+    )
+    assert "burn_enso_conditioned_mean" not in result.valuations
 
 
 def test_run_scenario_without_hedge_position_leaves_pnl_none() -> None:

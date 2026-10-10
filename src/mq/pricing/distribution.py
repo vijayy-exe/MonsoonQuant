@@ -151,19 +151,56 @@ def season_oni(
     return float(window["value"].mean())  # type: ignore[arg-type]
 
 
+def _tercile_cutpoints(year_oni: dict[int, float]) -> tuple[float, float]:
+    values = sorted(year_oni.values())
+    n = len(values)
+    return values[n // 3], values[(2 * n) // 3]
+
+
+def tercile_for_value(oni_value: float, year_oni: dict[int, float]) -> int:
+    """Classifies an arbitrary ONI value (e.g. a scenario shock's
+    `oni_override`, not necessarily any real year's own ONI) into a
+    tercile using the exact same within-sample cutpoints `oni_terciles`
+    computes from `year_oni` — lets a scenario shock be priced against
+    "years like this one" even when the shock's ONI doesn't match any
+    single historical year exactly."""
+    low_cut, high_cut = _tercile_cutpoints(year_oni)
+    return 0 if oni_value <= low_cut else (2 if oni_value >= high_cut else 1)
+
+
 def oni_terciles(year_oni: dict[int, float]) -> dict[int, int]:
     """Classifies each year into an ONI tercile (0=low/La Nina-ish,
     1=mid/neutral, 2=high/El Nino-ish) relative to the other years in
     `year_oni` — a within-sample classification, matching the product
     note's framing of "years with the same ONI tercile", not an absolute
     meteorological threshold."""
-    values = sorted(year_oni.values())
-    n = len(values)
-    low_cut = values[n // 3]
-    high_cut = values[(2 * n) // 3]
-    return {
-        year: (0 if v <= low_cut else (2 if v >= high_cut else 1)) for year, v in year_oni.items()
-    }
+    return {year: tercile_for_value(v, year_oni) for year, v in year_oni.items()}
+
+
+def _climatology_for_tercile(
+    data: np.ndarray,
+    years: list[int],
+    *,
+    target_tercile: int | None,
+    year_terciles: dict[int, int],
+    rng: np.random.Generator,
+    min_group_size: int,
+) -> FittedDistribution:
+    if target_tercile is None:
+        subset = data
+        used_fallback = True
+    else:
+        mask = np.array([year_terciles.get(y) == target_tercile for y in years])
+        subset = data[mask]
+        used_fallback = len(subset) < min_group_size
+        if used_fallback:
+            subset = data
+    return FittedDistribution(
+        kind="enso_climatology",
+        params={"n_in_group": float(len(subset)), "used_fallback": float(used_fallback)},
+        samples=rng.choice(subset, size=N_MC_SAMPLES, replace=True),
+        logpdf=None,  # empirical group climatology — same reasoning as bootstrap
+    )
 
 
 def fit_enso_conditioned_climatology(
@@ -180,19 +217,37 @@ def fit_enso_conditioned_climatology(
     subset is smaller than `min_group_size` — too few points to say
     anything ENSO-specific, and SPEC's own "report honestly" posture
     means falling back rather than overfitting a 2-3-point subset."""
-    target_tercile = year_terciles.get(target_year)
-    if target_tercile is None:
-        subset = data
-        used_fallback = True
-    else:
-        mask = np.array([year_terciles.get(y) == target_tercile for y in years])
-        subset = data[mask]
-        used_fallback = len(subset) < min_group_size
-        if used_fallback:
-            subset = data
-    return FittedDistribution(
-        kind="enso_climatology",
-        params={"n_in_group": float(len(subset)), "used_fallback": float(used_fallback)},
-        samples=rng.choice(subset, size=N_MC_SAMPLES, replace=True),
-        logpdf=None,  # empirical group climatology — same reasoning as bootstrap
+    return _climatology_for_tercile(
+        data,
+        years,
+        target_tercile=year_terciles.get(target_year),
+        year_terciles=year_terciles,
+        rng=rng,
+        min_group_size=min_group_size,
+    )
+
+
+def fit_enso_conditioned_climatology_for_value(
+    data: np.ndarray,
+    years: list[int],
+    *,
+    oni_value: float,
+    year_oni: dict[int, float],
+    year_terciles: dict[int, int],
+    rng: np.random.Generator,
+    min_group_size: int = 5,
+) -> FittedDistribution:
+    """Same empirical group-climatology idea as
+    `fit_enso_conditioned_climatology`, but keyed on an arbitrary ONI
+    *value* (classified via `tercile_for_value`) rather than a specific
+    historical year -- what a scenario shock needs, since its
+    `oni_override` is a hypothetical, not necessarily any real year's
+    own ONI."""
+    return _climatology_for_tercile(
+        data,
+        years,
+        target_tercile=tercile_for_value(oni_value, year_oni),
+        year_terciles=year_terciles,
+        rng=rng,
+        min_group_size=min_group_size,
     )

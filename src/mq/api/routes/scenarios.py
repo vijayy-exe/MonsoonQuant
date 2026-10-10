@@ -43,6 +43,7 @@ from mq.api.errors import infeasible_hedge, unknown_series
 from mq.api.schemas.envelope import Envelope, Meta
 from mq.db.models import Contract, IndexValue
 from mq.index.lpa import DailyLPA
+from mq.pricing.distribution import oni_terciles, season_oni
 from mq.pricing.simulator_glm import ChainModel
 from mq.pricing.simulator_ref import SimRequest, calibrate_overdispersion_sd
 from mq.risk.scenarios import (
@@ -98,7 +99,9 @@ def _now_meta(**kwargs: Any) -> Meta:
 # (contract_code, as_of) -- the real cost (~8s: parquet reads + the
 # daily-covariate join) is paid once per key, not once per request, and
 # definitely not once per shock within a request.
-_ModelCacheEntry = tuple[ChainModel, DailyLPA, float, float, float, pl.DataFrame]
+_ModelCacheEntry = tuple[
+    ChainModel, DailyLPA, float, float, float, pl.DataFrame, dict[int, float], dict[int, float]
+]
 _model_cache: dict[tuple[str, str], _ModelCacheEntry] = {}
 
 # Full-response cache, keyed by request hash -- SPEC's own stated
@@ -202,7 +205,27 @@ def _get_or_fit_model(
         ),
         target_seasonal_total_sd=target_sd,
     )
-    entry: _ModelCacheEntry = (model, daily_lpa, mean_oni, mean_dmi, sigma, climate_idx)
+
+    # Real per-year ONI (for SPEC §7.12's ENSO-conditioned burn
+    # valuation, run_scenario's optional historical_payoffs/year_oni
+    # args) -- cheap: climate_idx is already loaded and small, and this
+    # is paid once per (contract_code, as_of), same as everything else
+    # in this cache entry.
+    oni_rows = climate_idx.filter(pl.col("index") == "oni")
+    year_oni = {
+        y: v for y in official_values for v in [season_oni(oni_rows, year=y)] if v is not None
+    }
+
+    entry: _ModelCacheEntry = (
+        model,
+        daily_lpa,
+        mean_oni,
+        mean_dmi,
+        sigma,
+        climate_idx,
+        official_values,
+        year_oni,
+    )
     _model_cache[cache_key] = entry
     return entry
 
@@ -265,9 +288,24 @@ def post_scenarios_run(
             else latest_index.proxy_value  # type: ignore[arg-type]
         )
 
-    model, daily_lpa, mean_oni, mean_dmi, overdispersion_sd, climate_idx = _get_or_fit_model(
-        db, req.series_id, contract_code, effective_as_of
+    (
+        model,
+        daily_lpa,
+        mean_oni,
+        mean_dmi,
+        overdispersion_sd,
+        climate_idx,
+        official_values,
+        year_oni,
+    ) = _get_or_fit_model(db, req.series_id, contract_code, effective_as_of)
+    year_terciles = oni_terciles(year_oni) if year_oni else {}
+    historical_years = sorted(year_oni) if year_oni else None
+    historical_payoffs = (
+        np.array([official_values[y] for y in historical_years])
+        if historical_years is not None
+        else None
     )
+    rng = np.random.default_rng(req.seed)
 
     shocks: list[ScenarioShock] = [_SHOCK_FACTORIES[name]() for name in req.shocks]
     for year in req.historical_analog_years:
@@ -291,6 +329,11 @@ def post_scenarios_run(
             seed=req.seed,
             hedge_lots=req.hedge_lots,
             hedge_multiplier=req.hedge_multiplier,
+            historical_payoffs=historical_payoffs,
+            historical_years=historical_years,
+            year_oni=year_oni or None,
+            year_terciles=year_terciles or None,
+            rng=rng,
         )
         results.append(
             ScenarioRunResultData(

@@ -5,6 +5,82 @@ measured numbers.
 
 ---
 
+## 2026-10-10 — Closing the remaining non-deployment gaps: M4 detrending, M11 scenario burn valuation, 1951-2020 backfill
+
+User-requested follow-up: "close all gaps" except M14 (deploy, still
+your call). Closed the 3 remaining real, non-blocked items from the
+earlier audit this same day.
+
+- **M4 detrending** (SPEC §7.3): `mq.pricing.burn.detrend_sample`
+  implements all 3 named options — `none` (identity), `linear`
+  (scipy's `linregress`), and `loess` (hand-rolled tricube-weighted
+  local regression, Cleveland 1979 -- no new dependency; statsmodels
+  isn't installed and this is ~25 lines of numpy). Each detrended
+  sample is re-centered to the trend's own value at the most recent
+  year, so it stays on the original mm scale ("this season's
+  distribution at today's trend level," not the historical average).
+  `mq.pricing.selection.select_best_detrend[_and_distribution]` scores
+  all 3 against every M4 distribution candidate via the exact same
+  leave-one-out CRPS harness (`rolling_origin_cv`) already built,
+  choosing (detrend method, distribution) jointly, exactly as SPEC's
+  text calls for. 6 new unit tests (`tests/unit/test_detrend.py`),
+  including a hand-verified LOESS smoothing check.
+- **M11 scenario lab's "valuations under all methods" gap** (SPEC
+  §7.12), partially closed: `mq.risk.scenarios.run_scenario` now also
+  reports `burn_enso_conditioned_mean/p5/p95` when given the real
+  historical burn sample + per-year ONI -- the one other pricing
+  method (M4's ENSO-conditioned climatology) that can meaningfully
+  respond to an ENSO shock at all (burn's *un*conditioned stats and
+  the smooth parametric fits have no covariate to shock). New
+  `mq.pricing.distribution.fit_enso_conditioned_climatology_for_value`
+  + `tercile_for_value` classify the shock's *effective* ONI into a
+  tercile using the real sample's own cutpoints, not any single real
+  year's. Wired into `POST /v1/scenarios/run` at near-zero extra cost
+  -- the real chain-model fit (`_get_or_fit_model`) already computes
+  the burn sample needed for overdispersion calibration; just carried
+  it through the cache instead of discarding it. **Confirmed live, not
+  just unit-tested**: an `el_nino` shock against RAINCHNNAI-OCT26
+  returned `simulator_mean=655.5mm` vs. `burn_enso_conditioned_
+  mean=1042.1mm` -- a genuine, real cross-method divergence under the
+  same shock, left visible rather than reconciled. 2 new unit tests +
+  the 5 existing `/v1/scenarios/run` integration tests still pass
+  unchanged. **Still not done**: M8's forecast-conditioned method
+  (needs a full forecast object per shock) and re-optimized hedge per
+  scenario -- noted in `docs/STATUS.md`, not silently dropped.
+- **IMD backfill extended 1951-1990** (40 more years, all succeeded on
+  the first pass -- no retries needed, unlike the original 1991-2020
+  pass) to close SPEC §7.4's literal statistical-holdout window.
+  Re-ran the real validation (`.scratch/validate_simulator_1951.py`,
+  adapted from the original `.scratch/validate_simulator.py`) against
+  the full n=71 (1951-2020+2023) sample: real historical single-
+  station Sep1-Dec31 deviation sd=328.8mm; after the same
+  overdispersion-calibration fix (sigma=0.2269 at this sample size),
+  simulated sd=338.4mm -- **diff=2.92%**, well inside SPEC's ±10% band
+  and tighter than the original 31-year check. KS test (simulated vs.
+  the full 71-year historical sample): D=0.0665, p=0.8917, not
+  rejected at 5%. Real wet-day frequency (0.367) and mean spell length
+  (2.81 days) also reported from the fuller record.
+  **Deliberately NOT done**: `mq.api.common.BASIS_YEARS` (the constant
+  driving every *live* burn/distribution/forecasting/scenario
+  computation) stays pinned to `[1991-2020, 2023]` (n=31) -- widening
+  it to the new 71-year window would change every already-published
+  measured number in `docs/methods/*.md`/`paper/preprint.md`/
+  `docs/STATUS.md` at once. That's a real, broad decision belonging to
+  the user, not a drive-by edit alongside a data-gap backfill; the
+  data is there whenever that call gets made.
+
+**Gate status:** no milestone gate changes -- hardening already-`✅`
+milestones (M4, M5, M11), not opening a new one. `make check` run
+after these changes; see this entry's own commit for the result.
+
+**Next task:** your call. M14 (deploy) remains the one explicit,
+infra-blocked item. Everything else from the 3 planning docs is now
+either done, or blocked on something no amount of code can close
+(bhavcopy/MJO bot-gates, V12 licensing, or the BASIS_YEARS widening
+decision above).
+
+---
+
 ## 2026-10-10 — Post-M15 audit against the 3 planning docs: `mq run daily` was fully broken too, DQ08/DQ09, basis seasonal mismatch
 
 User-requested follow-up: asked whether everything in the 3 original
