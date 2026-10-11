@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 
+from mq.api.warm import warm_cache
 from mq.pipelines.daily import run_daily
 from mq.pipelines.dq import DQGateFailedError
 from mq.pipelines.ncdex import write_market_quotes
@@ -57,3 +58,30 @@ def bhavcopy(
         typer.echo("0 rows written -- no RAINCHNNAI/RAINMUMBAI rows found in this file.")
     else:
         typer.echo(f"Wrote {n} market_quotes row(s) from {csv_path}.")
+
+
+@app.command("warm-cache")
+def warm_cache_cmd(
+    base_url: str = typer.Option(
+        "http://127.0.0.1:8000", "--base-url", help="The running API server to warm."
+    ),
+) -> None:
+    """Hits every expensive, cacheable GET endpoint (basis, greeks,
+    track-record, ...) for every real series/contract against a
+    *running* API server -- see `mq.api.warm`'s module docstring for
+    why this has to be real HTTP requests against that specific
+    process, not a library call. Run this after starting or restarting
+    the API so the first real visitor to any dashboard page never pays
+    the cold-cache cost live. Safe to re-run; every call is
+    idempotent."""
+    results = warm_cache(base_url=base_url)
+    for r in results:
+        if r.error is not None:
+            typer.echo(f"[ERR ] {r.label:28s} {r.elapsed_s:6.1f}s -- {r.error}")
+        else:
+            marker = "OK" if r.status_code == 200 else f"({r.status_code})"
+            typer.echo(f"[{marker:4s}] {r.label:28s} {r.elapsed_s:6.1f}s")
+    failed = [r for r in results if r.error is not None or r.status_code != 200]
+    typer.echo(f"\n{len(results) - len(failed)}/{len(results)} warmed cleanly.")
+    if failed:
+        raise typer.Exit(code=1)
