@@ -135,6 +135,15 @@ def get_track_record(
     rain_grid = load_rain_grid(effective_as_of)
     climate_idx = load_climate_idx(effective_as_of)
     rows = build_training_rows(spec, rain_grid, climate_idx, BASIS_YEARS)
+    # Neither is touched again below -- the 5-rung walk-forward backtest
+    # (the memory/CPU-heavy part: up to 21 LightGBM + 21 CQR models held
+    # simultaneously in lgbm_cache/cqr_cache) only ever operates on
+    # `rows`. Dropping the real rain_grid (56M rows even after the
+    # BASIS_YEARS partition-pruning fix) and climate_idx here frees that
+    # memory before the heavy part starts, instead of holding it
+    # uselessly for the whole function's lifetime -- this route has
+    # crashed the dev server under memory pressure more than once.
+    del rain_grid, climate_idx
 
     def model_enso(table: pl.DataFrame, target_year: int, issue_date: date) -> np.ndarray:
         return np.array(
