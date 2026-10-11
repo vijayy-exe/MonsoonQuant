@@ -55,10 +55,10 @@ Warm the API cache after starting (so the first real visitor never pays the cold
 mq run warm-cache --base-url http://127.0.0.1:8000
 ```
 
-Run the daily ingest pipeline (IMD real-time fetch → index recompute → live ledger write):
+Run the daily ingest pipeline (IMD real-time fetch → index recompute → live ledger write, both real contracts):
 
 ```bash
-mq run daily --contract RAINCHNNAI
+mq run daily
 ```
 
 Ingest a manually-downloaded NCDEX bhavcopy CSV (UDiFF format):
