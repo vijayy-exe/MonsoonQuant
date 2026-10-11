@@ -26,7 +26,7 @@ a quantile-regression model's output into a comparable ensemble sample.
 **Native `Dataset`/`Booster` API, not `LGBMRegressor`**: the
 scikit-learn-compatible wrapper requires scikit-learn to be installed
 (`lightgbm.sklearn` raises at import time otherwise) — an unplanned,
-much larger dependency the CLAUDE.md size-check before adding lightgbm
+much larger dependency the AGENTS.md size-check before adding lightgbm
 never covered. `lgb.train`/`Booster.predict` need only the lightgbm
 package itself.
 """

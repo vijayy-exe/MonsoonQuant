@@ -15,7 +15,7 @@ What this deliberately does NOT do, and why:
   specific single-station reference cell decided ad hoc in a scratch
   script, never committed to source. Writing new rows here would mean
   guessing that decision -- "never modify ledger rows... without
-  asking" (CLAUDE.md) extends to not silently inventing how its
+  asking" (AGENTS.md) extends to not silently inventing how its
   *future* rows get produced either (the same call M7's live-row work
   already made for the 4 newer rungs). Left alone; revisit explicitly
   if wanted.

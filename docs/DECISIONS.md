@@ -68,7 +68,7 @@ for now.
 **Reason:** (a) is deliberately defeating an anti-bot control the site
 operator put there on purpose — the same category of action declined for
 BoM/MJO earlier today, for the same reason. (b) wasn't available this
-session (claude-in-chrome extension not connected). Chose (c): the
+session (browser automation not connected). Chose (c): the
 parser/normalizer/DQ pipeline is fully built and tested against the
 *real* documented UDiFF schema, so a human (or a future legitimate
 browser session) dropping a downloaded CSV into the pipeline is all

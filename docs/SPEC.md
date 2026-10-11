@@ -1,4 +1,4 @@
-# MonsoonQuant — Master Build Specification (Claude Code Edition)
+# MonsoonQuant — Master Build Specification
 
 > **Prices, forecasts, explains and hedges India's exchange-traded rainfall futures (RAINCHNNAI, RAINMUMBAI).**
 > A small, auditable quant-research platform — not a folder of notebooks.
@@ -13,9 +13,9 @@
 
 ---
 
-## 0. READ FIRST — Operating Manual for Claude Code
+## 0. READ FIRST — Operating Manual
 
-This file is the single source of truth. Claude Code must read it fully before writing code and re-read the relevant section before starting each milestone.
+This file is the single source of truth. Read it fully before writing code and re-read the relevant section before starting each milestone.
 
 ### 0.1 Your role
 You are the lead engineer on a quantitative-finance research platform. Correctness, reproducibility and honest uncertainty beat feature count. When the spec and reality disagree (e.g., an official contract document says something different), **reality wins — stop, record it in `docs/DECISIONS.md`, and ask the owner.**
@@ -58,10 +58,10 @@ make dev           # docker compose up (db, api, web, mlflow)
 mq --help          # project CLI (Typer)
 ```
 
-### 0.6 Files Claude Code maintains
+### 0.6 Files to maintain
 | File | Purpose |
 |---|---|
-| `CLAUDE.md` | Short (≤150 lines) extract of §0 + current milestone. Template in Appendix A. |
+| `AGENTS.md` | Short (≤150 lines) extract of §0 + current milestone. Template in Appendix A. |
 | `docs/PROGRESS.md` | Running log with measured numbers. |
 | `docs/DECISIONS.md` | ADR-lite: decision, alternatives, reason, date. |
 | `docs/VERIFY.md` | Open questions about contract specs/data; each closed with a source link + SHA. |
@@ -167,7 +167,7 @@ This single feature is the strongest credibility signal in the whole project.
 
 ## 3. Domain Primer & VERIFY List
 
-### 3.1 What Claude Code must get right
+### 3.1 Domain rules to get right
 - **Futures pricing:** with daily mark-to-market, the futures price is a martingale under the pricing measure Q: `F_t = E_Q[ I_T · multiplier | 𝓕_t ]`. **No discounting** of the futures price itself. (Discounting applies to option-like payoffs in the parametric designer.)
 - **Index is path-dependent on cumulative rainfall:** value at time t = function of (rain observed so far) + distribution of (rain still to come). Every engine must take `observed_to_date` as an explicit input.
 - **Thin market:** settlement prices may be exchange-determined with few or zero trades. Store volume/OI next to every price and weight MPR calibration by liquidity; exclude zero-volume days from headline λ (report them separately).
@@ -277,7 +277,7 @@ If V11 shows the contracts are not trading, switch to **Fallback Mode B** (§17)
 
 ```text
 monsoonquant/
-├── CLAUDE.md                     # Appendix A
+├── AGENTS.md                     # Appendix A
 ├── README.md                     # pitch, screenshots, quickstart, results table
 ├── Makefile
 ├── pyproject.toml / uv.lock      # workspace
@@ -669,7 +669,7 @@ lint (ruff, clang-format, eslint) → types (mypy --strict on core, tsc) → bui
 
 ## 13. Milestone Plan (15 weeks, with gates)
 
-Each milestone lists tasks Claude Code should execute in order. **Gate = acceptance check that must pass before the next milestone.**
+Each milestone lists tasks to execute in order. **Gate = acceptance check that must pass before the next milestone.**
 
 ### Week 1 (5–11 Oct) — M0 Scaffold · M1 Specs · ledger live
 - M0.1 Repo, uv workspace, Makefile, pre-commit, CI skeleton, docker-compose (postgres, mlflow).
@@ -809,9 +809,9 @@ A new user can: open the site → pick RAINCHNNAI/RAINMUMBAI → see today's ind
 
 ---
 
-## Appendix A — `CLAUDE.md` template (create in M0, keep ≤150 lines)
+## Appendix A — `AGENTS.md` template (create in M0, keep ≤150 lines)
 ```markdown
-# MonsoonQuant — Claude Code instructions
+# MonsoonQuant — Agent instructions
 Spec: docs/SPEC.md (this master file). Read §0 and the current milestone before coding.
 
 ## Current milestone
@@ -839,8 +839,8 @@ C++: C++20, clang-format, no allocation in hot loops, Philox RNG.
 TS: strict, generated API types only, no `any`.
 ```
 
-## Appendix B — Suggested Claude Code session prompts
-- *Kick-off:* "Read docs/SPEC.md fully. Create CLAUDE.md from Appendix A. Then execute M0.1–M0.3 in plan mode; stop after the gate and show me `make check` output."
+## Appendix B — Suggested session prompts
+- *Kick-off:* "Read docs/SPEC.md fully. Create AGENTS.md from Appendix A. Then execute M0.1–M0.3 in plan mode; stop after the gate and show me `make check` output."
 - *Per milestone:* "Start M5. Re-read §7.4 and §11. Propose the task breakdown and test list first; wait for my OK."
 - *Verification:* "Run the time-travel leakage test for 2025-11-15 and show the diff against the ledger."
 - *Review:* "Act as a skeptical quant reviewer. List the 5 weakest assumptions in the current pricing pipeline with evidence from the code."

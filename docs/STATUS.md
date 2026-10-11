@@ -94,7 +94,7 @@ comments) — that's the main remaining honesty caveat.
 | `mq.pipelines.ncdex`: parse → filter → normalise → DQ gate → upsert | ✅ tested against a schema-accurate synthetic fixture (6 unit + 2 integration tests) |
 | DQ05 (stale data), DQ06 (unknown contract code), DQ07 (silent raw-file revision), DQ10 (settle outside DPL band) | ✅ |
 | DQ08 (climate index revision), DQ09 (proxy index jump >3σ) | ✅ done — M3's index engine now exists; DQ08 wired into `write_climate_idx` (info-severity, fires on a real release-date-ordered value change), DQ09 wired into the new `mq run daily` job against `IndexPath.daily_deviation_mm`. Both real-run for the first time, not just unit-tested (see "`mq run daily`" in the Feature catalogue section below) |
-| **Live bhavcopy fetch** | 🔴 blocked — ncdex.com's `/api/bhavcopy` sits behind a JS fingerprint/bot-detection challenge (confirmed via the page's own served JS). Not worked around, same policy as BoM. Needs either a manually-downloaded CSV or a real browser session (claude-in-chrome wasn't connected this session) |
+| **Live bhavcopy fetch** | 🔴 blocked — ncdex.com's `/api/bhavcopy` sits behind a JS fingerprint/bot-detection challenge (confirmed via the page's own served JS). Not worked around, same policy as BoM. Needs either a manually-downloaded CSV or a real browser session. |
 
 ---
 

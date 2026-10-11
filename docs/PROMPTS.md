@@ -1,4 +1,4 @@
-# MonsoonQuant — Claude Code Prompt Sheet
+# MonsoonQuant — Prompt Sheet
 
 Put this file in `docs/PROMPTS.md` next to `docs/SPEC.md`.
 Copy and paste one prompt at a time. Wait for each gate to pass before moving on.
@@ -8,7 +8,7 @@ Use **plan mode** (Shift+Tab) for every milestone start. Run `/clear` between mi
 
 ## 0. Session start (use at the beginning of EVERY session)
 ```
-Read CLAUDE.md and docs/PROGRESS.md. Tell me in 5 lines: current milestone, last completed task,
+Read AGENTS.md and docs/PROGRESS.md. Tell me in 5 lines: current milestone, last completed task,
 open VERIFY items, failing tests (run `make check`), and the next task you propose. Do not code yet.
 ```
 
@@ -18,7 +18,7 @@ open VERIFY items, failing tests (run `make check`), and the next task you propo
 
 ### M0 — Scaffold
 ```
-Read docs/SPEC.md fully. Create CLAUDE.md from Appendix A (current milestone = M0).
+Read docs/SPEC.md fully. Create AGENTS.md from Appendix A (current milestone = M0).
 Then plan M0.1–M0.3 from §13 Week 1: repo layout (§5), uv workspace, Makefile targets (§0.5),
 pre-commit (ruff, mypy, clang-format, gitleaks), CI skeleton (§11.1), docker-compose (postgres, mlflow),
 Typer CLI `mq`, structlog, settings, and the as_of-aware `mq.io` layer with a test that fails on look-ahead reads.
@@ -215,7 +215,7 @@ show me the revised plan.
 **Context reset**
 ```
 Summarise this session into docs/PROGRESS.md (tasks done, measured numbers, open issues, next step)
-and update the Current milestone in CLAUDE.md so the next session can resume.
+and update the Current milestone in AGENTS.md so the next session can resume.
 ```
 
 **Commit hygiene**

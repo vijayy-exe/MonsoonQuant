@@ -373,7 +373,7 @@ daily`, and that command never existed at all.
   Deliberately skips: bhavcopy/MJO (bot-gated, same policy as M2), a
   new `clim_v1` row (its real M1 reference cell was only ever used in
   an uncommitted scratch script — writing one here would mean
-  guessing it, which `CLAUDE.md`'s "never modify ledger rows... without
+  guessing it, which `AGENTS.md`'s "never modify ledger rows... without
   asking" is read to cover), and git-mirror export (no remote).
 - **Real run, not simulated**: the very first run failed loudly —
   `compute_index:RAINCHNNAI` refused with "missing rainfall data for
@@ -1041,7 +1041,7 @@ times before being root-caused, a real degenerate-CVaR LP case
 reproduced live, a wrong claim about a missing model-fitting pipeline
 that was actually just never wired together, a miscounted running
 endpoint tally, and now this `run_id` gap. `docs/STATUS.md`,
-`docs/methods/api.md`, `CLAUDE.md` all updated to reflect M12 complete
+`docs/methods/api.md`, `AGENTS.md` all updated to reflect M12 complete
 and point to M13 (dashboard, not started) as next.
 
 ---
@@ -1055,7 +1055,7 @@ endpoints since the first M12 session -- meaning every "N of 18"
 figure reported this far was off by one. Caught while about to write
 "18 of 18" for a milestone that still had `lineage` left to build.
 Corrected throughout `docs/STATUS.md`/`docs/methods/api.md`/
-`CLAUDE.md`: 18 real routes now exist, which is 17 of SPEC's 18 table
+`AGENTS.md`: 18 real routes now exist, which is 17 of SPEC's 18 table
 rows -- only `lineage` remains.
 
 - **Built `GET /v1/track-record`** (`src/mq/api/routes/track_record.py`,
@@ -1327,7 +1327,7 @@ Continuation from the previous day (M0-M11 complete); picked up M12
   `hedge`/`parametric/design`/`scenarios/run` need request schemas plus
   SPEC's `n_paths` cap/5s time-box; `track-record`, `lineage`), plus
   OpenAPI file export, TS codegen, rate limiting, caching, real CORS.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M12 row and F19 now
+- `docs/STATUS.md`, `AGENTS.md` updated: M12 row and F19 now
   in-progress, new M12 detail table. Full write-up:
   `docs/methods/api.md`.
 
@@ -1374,7 +1374,7 @@ math, over M5's simulator and M9's Greeks/hedge pipeline.
   mean/P5/P95, not SPEC's full "valuations under all methods" (burn/
   distribution/conditioned specifically); and hedge P&L is against an
   existing fixed position, not a per-scenario re-optimized one.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M11 (both halves) and F18 now
+- `docs/STATUS.md`, `AGENTS.md` updated: M11 (both halves) and F18 now
   done. **M0-M11 are now all complete** — only M12+ (API hardening,
   dashboard, deploy, paper) remain of the full 15-week plan.
   Resume-pointer moved to M12.
@@ -1416,7 +1416,7 @@ first half (parametric cover designer, `mq.risk.parametric`).
   interpretable improvement. Script + log:
   `.scratch/parametric_demo.py` (gitignored). Full write-up:
   `docs/methods/parametric.md`.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M11's parametric row and F17
+- `docs/STATUS.md`, `AGENTS.md` updated: M11's parametric row and F17
   now done, new M11 detail table, resume-pointer moved to the scenario
   lab (`mq.risk.scenarios`) — mostly orchestration of what's already
   built, not new pricing machinery.
@@ -1470,7 +1470,7 @@ M10's basis engine.
   for a genuinely small exposure to hedge with whole lots at all.
   Script + log: `.scratch/hedge_demo.py` (gitignored). Full write-up:
   `docs/methods/hedge.md`.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M9's hedge-optimiser row and
+- `docs/STATUS.md`, `AGENTS.md` updated: M9's hedge-optimiser row and
   F15 now done, M9 detail table updated, resume-pointer moved to M11
   (parametric cover designer + scenario lab).
 
@@ -1513,7 +1513,7 @@ engine as a prerequisite for real scenarios.
   a full city-wide bounding box (the real run used a modest 12-cell box
   to keep cost reasonable — cost scales linearly with cell count, not a
   blocker, just not run at full scale yet).
-- `docs/STATUS.md`, `CLAUDE.md` updated: M10 row and F16 now done, new
+- `docs/STATUS.md`, `AGENTS.md` updated: M10 row and F16 now done, new
   M10 detail table, M9's hedge-optimiser row updated to reflect it's
   now unblocked (needs a cvxpy/HiGHS dependency decision for the CVaR
   piece specifically).
@@ -1569,7 +1569,7 @@ engine for real scenarios, see below).
   prerequisite for real scenarios — noted in STATUS.md rather than
   building the optimizer against placeholder scenarios right now;
   M10-before-M9's-hedge-piece may be the more natural order.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M9's Greeks row done, F14
+- `docs/STATUS.md`, `AGENTS.md` updated: M9's Greeks row done, F14
   done, new M9 detail table, resume-pointer notes the M10 dependency.
 
 ---
@@ -1616,7 +1616,7 @@ Continuation of the same day, after M7 was closed out. User said
   real trade — still no real settlement data, same bhavcopy blocker as
   M6). Script + log: `.scratch/conditioned_demo.py` (gitignored).
   Full write-up: `docs/methods/conditioned.md`.
-- `docs/STATUS.md`, `CLAUDE.md` updated: M8 row and F13 now done, new
+- `docs/STATUS.md`, `AGENTS.md` updated: M8 row and F13 now done, new
   M8 detail table, resume-pointer moved to M9 (Greeks + hedge
   optimiser, `mq.risk`).
 
@@ -1660,7 +1660,7 @@ the two remaining forecasting-ladder rungs.
   picking one headline number: the mechanism works, it still isn't
   enough data to beat climatology on CRPS. Script + log:
   `.scratch/lgbm_backtest.py` (gitignored, real-data-dependent).
-- `docs/STATUS.md`, `CLAUDE.md`, `docs/methods/forecasting.md` updated
+- `docs/STATUS.md`, `AGENTS.md`, `docs/methods/forecasting.md` updated
   with the final 5-rung comparison table. **M7 is now fully complete.**
   Resume-pointer moved to M8 (forecast-conditioned pricing,
   `mq.pricing.conditioned`).
@@ -1725,12 +1725,12 @@ Continuation of the same day, after M6 was closed out. User said
   threshold — a Temporal Fusion Transformer would almost certainly just
   overfit at this scale.
 - **Not yet done**: the LightGBM rungs (`lgbm_q_v1`, `lgbm_q_cqr_v1`)
-  need a new dependency decision (size check against CLAUDE.md's
+  need a new dependency decision (size check against AGENTS.md's
   >50MB-without-asking rule, not yet done); live ledger rows for the
   two newer rungs need a separate "live row" builder for the
   in-progress 2026 season (`build_training_rows` requires a *complete*
   historical season, so it can't build today's own row as-is).
-- `docs/STATUS.md`, `CLAUDE.md` updated: M7 row now in-progress with
+- `docs/STATUS.md`, `AGENTS.md` updated: M7 row now in-progress with
   the real CRPSS numbers, new M7 detail table, F12 updated.
 
 ---
@@ -1783,7 +1783,7 @@ Continuation of the same day, after M5 was closed out. User said
   3-date Bayesian pool [0.027, 0.485]. Script: `.scratch/mpr_demo.py`
   (gitignored, not a committed test, same pattern as other real-data
   demo scripts). Full write-up: `docs/methods/mpr.md`.
-- `docs/STATUS.md` and `CLAUDE.md` updated: M6 row now in-progress
+- `docs/STATUS.md` and `AGENTS.md` updated: M6 row now in-progress
   (machinery done, real calibration blocked), F11 updated, new M6
   detail table, resume-pointer moved to M7 (forecasting ladder).
 
@@ -1842,7 +1842,7 @@ asked how to proceed after M5.1/M5.2.
 - New `tests/statistical/`: parity, cross-thread determinism, and the
   `make bench` benchmark — all pass, all real measurements, none
   fabricated.
-- `CLAUDE.md`'s "Current milestone" section was badly stale (still said
+- `AGENTS.md`'s "Current milestone" section was badly stale (still said
   M3 was next, from several sessions ago) — updated to reflect M0-M5
   complete, M6 next.
 - **M5 is now fully complete** (M5.1, M5.2, M5.3). `docs/STATUS.md`
