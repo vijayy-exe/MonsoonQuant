@@ -128,16 +128,34 @@ still carries real information (per §4's own table) while most of the
 season is still carried by the simulator. Documented here rather than
 silently picked.
 
-## 6. What's not done yet
+## 6. Real λ applied to the conditioned payoff, for real (2026-10-11)
 
-- Applying a *real* λ (vs. the illustrative one in §4) to this real
-  P-measure conditioned payoff needs real settlement data — this is
-  now real as of 2026-10-11 for the *burn* method (`docs/methods/
-  mpr.md` §6), just not yet re-applied to the conditioned payoff
-  specifically; mechanically straightforward on top of what's built
-  (`mq.mpr.wang`/`esscher`'s `wang_price`/`esscher_price` on
-  `result.payoff` at the real calibrated λ), not yet done since it
-  would need its own `mq run`-style script rather than a one-off.
+Closed the same day it was opened: each RAINCHNNAI series' own most
+recent real calibrated λ/θ (`docs/methods/mpr.md` §6) reweights the
+*same* conditioned payoff array (§5's real `result.payoff`, not the
+burn sample) via `mq.mpr.wang.wang_price`/`esscher.esscher_price` —
+the exact mechanism already built, just pointed at this payoff instead
+of the burn one.
+
+| series | P (conditioned) | λ (wang) | Q_wang | θ (esscher) | Q_esscher |
+|---|---|---|---|---|---|
+| OCT26 | 810.3mm | 0.0193 | 817.1mm | 0.0168 | 816.5mm |
+| NOV26 | 810.3mm | 0.0314 | 821.4mm | 0.0272 | 820.4mm |
+| DEC26 | 810.3mm | 0.0434 | 825.7mm | 0.0374 | 824.2mm |
+
+A real, internally consistent finding: the P-measure conditioned price
+is identical across all 3 series (one shared index path, §5), but each
+series' own Q-measure price diverges by its own calibrated λ — DEC26
+(longest to expiry, largest λ) carries the biggest risk loading above
+its own P-mean (+15.4mm), OCT26 (shortest to expiry, smallest λ) the
+smallest (+6.8mm). Written via the same `write_valuation(method=
+"conditioned", measure="Q_wang"/"Q_esscher")` path as §5; live on
+`/v1/series/{id}/valuations/compare` now returning all 4 real
+measures (P, Q_wang, Q_esscher alongside burn's own) for every
+RAINCHNNAI series.
+
+## 7. What's not done yet
+
 - A formal plotted band-width-vs-time figure (the table in §4 has the
   real numbers; the plot itself is `research/`-script work per M15's
   "every figure from a script" requirement).

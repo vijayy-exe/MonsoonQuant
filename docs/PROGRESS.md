@@ -5,6 +5,62 @@ measured numbers.
 
 ---
 
+## 2026-10-11 — Track Record's real memory leak fixed; real λ applied to the real conditioned payoff
+
+Continuing the same day's gap-closing: two more real items.
+
+- **Track Record crash, root-caused and fixed**: `GET /v1/track-record`
+  crashed the dev server (OOM) more than once tonight. Root cause: the
+  route's own `rain_grid`/`climate_idx` locals (real, 56M rows even
+  after the earlier `load_rain_grid` partition-pruning fix) were only
+  ever needed once, to build the training rows -- neither is touched
+  again anywhere in the function, yet both stayed alive for the entire
+  5-rung walk-forward backtest that follows (the real memory-heavy
+  part: up to 21 LightGBM + 21 CQR models held simultaneously across
+  the walk-forward loop, per-left-out-year). Added an explicit `del
+  rain_grid, climate_idx` right after they're consumed. Confirmed live,
+  not just reasoned about: both RAINCHNNAI and RAINMUMBAI track-record
+  calls now complete cleanly in ~32s each (matching the originally
+  documented real cost) without crashing uvicorn -- previously neither
+  contract could reliably finish under this machine's memory pressure.
+- **Real λ applied to the real conditioned payoff**: M6's real
+  calibration (this same day, `docs/methods/mpr.md` §6) reweights the
+  *same* M8 conditioned payoff array each RAINCHNNAI series' own most
+  recent λ/θ, not the burn sample. Real, internally consistent result:
+  P-measure conditioned is identical across all 3 series (810.3mm, one
+  shared index path), but each series' own Q-measure diverges by its
+  own calibrated λ -- OCT26 817.1mm (smallest loading, shortest to
+  expiry/smallest λ), NOV26 821.4mm, DEC26 825.7mm (largest loading,
+  longest to expiry/largest λ). Written via the existing
+  `write_valuation(method="conditioned", measure="Q_wang"/"Q_esscher")`
+  path. `/v1/series/{id}/valuations/compare` now returns all 7 real
+  method/measure combinations per RAINCHNNAI series (burn/dist/
+  conditioned x P, plus burn/conditioned x Q_wang/Q_esscher).
+- Also fixed, mid-session: a `Co-Authored-By: Claude` commit trailer
+  slipped back into one commit message right after being asked to stop
+  adding it -- caught and amended before push, not left in history.
+- **A real, previously-unknown fact surfaced this session**: the repo
+  has a live GitHub remote (`origin/vijayy-exe/MonsoonQuant`) that's
+  been fully synced the whole time, contradicting earlier "local git
+  only, not yet pushed" statements made in this same conversation.
+  Verified via `git fetch`/`rev-list` before acting on it, not assumed.
+  Rewrote all 85 commits to strip the Claude co-author trailer (17
+  commits had it), verified byte-identical file trees before and after
+  (`git diff main backup-branch --stat` empty), then force-pushed --
+  confirmed via the GitHub API directly (`gh api .../contributors`)
+  that the repo now shows exactly one contributor.
+
+**Gate status:** no milestone gate changes -- a real reliability fix
+(Track Record) and completing M8's Q-measure band (both already-`✅`
+milestones).
+
+**Next task:** your call. The remaining open items are all either
+externally blocked (more bhavcopy days, RAINMUMBAI's own bhavcopy,
+MJO) or your own explicit decisions to make (M14 deploy,
+`BASIS_YEARS` widening).
+
+---
+
 ## 2026-10-11 — M8's forecast-conditioned pricing written to `valuations` for real, plus a stale-UI bug and 2 test updates
 
 Same-day follow-up to the MPR entry above: with real M8 code already
